@@ -1,0 +1,262 @@
+const INTERVALO_MS = 10000; // 10 segundos
+const productosAnteriores = new Map(); // clave -> JSON string del producto (para detectar cambios)
+let ultimoSnapshot = '';
+
+async function load_data() {
+    try {
+        const respuesta = await fetch('../../controller/api-products.php');
+        const resultado = await respuesta.json();
+
+        if (resultado.success) {
+            update_cards(resultado.data);
+        } else {
+            console.error('Error del servidor:', resultado.error);
+        }
+    } catch (error) {
+        console.error('Error al obtener datos:', error);
+    }
+}
+
+// Clave única por fila: id + nombre del producto.
+// Se usa el nombre además del id porque un producto con variantes genera
+// varias filas con el MISMO id (una por variante), y el nombre es lo que
+// las distingue (ej. "Hamburguesa (Chica)" vs "Hamburguesa (Grande)").
+function get_clave(producto) {
+    return `${producto.id}::${producto.product}`;
+}
+
+function update_cards(productos) {
+    const snapshotActual = JSON.stringify(productos);
+    if (snapshotActual === ultimoSnapshot) return;
+    ultimoSnapshot = snapshotActual;
+
+    const contenedor = document.getElementById('menu-for-clients');
+    const clavesNuevas = new Set();
+
+    productos.forEach(producto => {
+        const clave = get_clave(producto);
+        clavesNuevas.add(clave);
+        const productoJSON = JSON.stringify(producto);
+
+        const seccion = get_or_create_category_section(contenedor, producto.category_id, producto.category);
+        const grid = seccion.querySelector('.cards-grid');
+
+        if (productosAnteriores.get(clave) === productoJSON) return;
+
+        let carta = contenedor.querySelector(`[data-key="${clave}"]`);
+
+        if (!carta) {
+            carta = document.createElement('div');
+            carta.dataset.key = clave;
+            grid.appendChild(carta);
+        } else if (carta.parentElement !== grid) {
+            grid.appendChild(carta);
+        }
+
+        info_card(carta, producto);
+        productosAnteriores.set(clave, productoJSON);
+    });
+
+    // Eliminar tarjetas de productos que ya no vienen en la respuesta
+    productosAnteriores.forEach((_, clave) => {
+        if (!clavesNuevas.has(clave)) {
+            const carta = contenedor.querySelector(`[data-key="${clave}"]`);
+            if (carta) carta.remove();
+            productosAnteriores.delete(clave);
+        }
+    });
+
+    // Eliminar secciones de categoría que se quedaron sin productos
+    contenedor.querySelectorAll('.category-section').forEach(seccion => {
+        if (seccion.querySelector('.cards-grid').children.length === 0) {
+            seccion.remove();
+        }
+    });
+}
+
+
+/* No recarga los cards
+function update_cards(productos) {
+    const snapshotActual = JSON.stringify(productos);
+    if (snapshotActual === ultimoSnapshot) return;
+    ultimoSnapshot = snapshotActual;
+
+    const contenedor = document.getElementById('menu-for-clients');
+    const clavesNuevas = new Set();
+
+    productos.forEach(producto => {
+        const clave = get_clave(producto);
+        clavesNuevas.add(clave);
+        const productoJSON = JSON.stringify(producto);
+
+        // Asegura que la sección de la categoría exista (sin reordenarla si ya existe)
+        const seccion = get_or_create_category_section(contenedor, producto.category_id, producto.category);
+        const grid = seccion.querySelector('.cards-grid');
+
+        // Si esta tarjeta no cambió, no la tocamos (así no se pierde el scroll)
+        if (productosAnteriores.get(clave) === productoJSON) return;
+
+        let carta = contenedor.querySelector(`[data-key="${clave}"]`);
+
+        if (!carta) {
+            carta = document.createElement('div');
+            if (producto.available == 0) {
+                carta.className = 'card-product-disabled';   
+            } else {
+                carta.className = 'card-product';
+            }
+            carta.dataset.key = clave;
+            grid.appendChild(carta);
+        } else if (carta.parentElement !== grid) {
+            // El producto cambió de categoría: lo movemos a su nueva sección
+            grid.appendChild(carta);
+        }
+
+        info_card(carta, producto);
+        productosAnteriores.set(clave, productoJSON);
+    });
+
+    // Eliminar tarjetas de productos que ya no vienen en la respuesta
+    productosAnteriores.forEach((_, clave) => {
+        if (!clavesNuevas.has(clave)) {
+            const carta = contenedor.querySelector(`[data-key="${clave}"]`);
+            if (carta) carta.remove();
+            productosAnteriores.delete(clave);
+        }
+    });
+
+    // Eliminar secciones de categoría que se quedaron sin productos
+    contenedor.querySelectorAll('.category-section').forEach(seccion => {
+        if (seccion.querySelector('.cards-grid').children.length === 0) {
+            seccion.remove();
+        }
+    });
+}*/
+
+function get_or_create_category_section(contenedor, categoryId, categoryName) {
+    let seccion = contenedor.querySelector(`[data-category-id="${categoryId}"]`);
+    if (!seccion) {
+        seccion = document.createElement('section');
+        seccion.className = 'category-section';
+        seccion.dataset.categoryId = categoryId;
+        seccion.innerHTML = `<h2 class="category-title"></h2><div class="cards-grid"></div>`;
+        contenedor.appendChild(seccion);
+    }
+    seccion.querySelector('.category-title').textContent = categoryName;
+    return seccion;
+}
+
+/*
+// AJUSTA estos campos a las columnas reales de tu vista "view_menu"
+function info_card(div, producto) {
+    div.innerHTML = `
+    <div style="background: rgb(0, 0, 0, 0) url('../../../files/img_products/${producto.img}') center center / cover no-repeat; border-radius: 10px 10px 0px 0px; border-bottom: 1px solid #ABABAB;"></div>
+    <div class="info-product">
+        <span>${escapeHTML(producto.product)}</span>
+        <strong>$${escapeHTML(producto.price)}</strong>
+    </div>
+    `;
+}*/
+function info_card(div, producto) {
+    // La clase se evalúa SIEMPRE, no solo al crear la tarjeta
+    div.className = producto.available == 0 ? 'card-product-disabled' : 'card-product';
+
+    div.innerHTML = `
+    <div class="img-product" style="background: rgb(0, 0, 0, 0.1) url('../../../files/img_products/${producto.img}') center center / cover no-repeat;">
+        <span>${producto.available == 0 ? 'Agotado' : ''}</span>
+    </div>
+    <div class="info-product">
+        <span>${escapeHTML(producto.product)}</span>
+        <strong>$${escapeHTML(producto.price)}</strong>
+    </div>
+    `;
+}
+
+function escapeHTML(texto) {
+    const span = document.createElement('span');
+    span.textContent = texto ?? '';
+    return span.innerHTML;
+}
+
+load_data();
+setInterval(load_data, INTERVALO_MS);
+
+
+/*const INTERVALO_MS = 10000; // 10 segundos
+const productosAnteriores = new Map(); // id -> JSON string del producto (para detectar cambios)
+let ultimoSnapshot = '';
+
+async function load_data() {
+    try {
+        const respuesta = await fetch('../../controller/api-products.php');
+        const resultado = await respuesta.json();
+
+        if (resultado.success) {
+            update_cards(resultado.data);
+            //document.getElementById('ultima-actualizacion').textContent = resultado.hora;
+        } else {
+            console.error('Error del servidor:', resultado.error);
+        }
+    } catch (error) {
+        console.error('Error al obtener datos:', error);
+    }
+}
+
+function update_cards(productos) {
+    // Salida rápida: si todo el arreglo es idéntico al anterior, no hacemos nada
+    const snapshotActual = JSON.stringify(productos);
+    if (snapshotActual === ultimoSnapshot) return;
+    ultimoSnapshot = snapshotActual;
+
+    const contenedor = document.getElementById('menu-for-clients');
+    const idsNuevos = new Set();
+
+    productos.forEach(producto => {
+        const id = String(producto.id);
+        idsNuevos.add(id);
+        const productoJSON = JSON.stringify(producto);
+
+        // Si esta tarjeta no cambió, no la tocamos (así no se pierde el scroll)
+        if (productosAnteriores.get(id) === productoJSON) return;
+
+        let carta = contenedor.querySelector(`[data-id="${id}"]`);
+
+        if (!carta) {
+            carta = document.createElement('div');
+            carta.className = 'card-product';
+            carta.dataset.id = id;
+            contenedor.appendChild(carta);
+        }
+
+        info_card(carta, producto);
+        productosAnteriores.set(id, productoJSON);
+    });
+
+    // Eliminar tarjetas de productos que ya no vienen en la respuesta
+    productosAnteriores.forEach((_, id) => {
+        if (!idsNuevos.has(id)) {
+            const carta = contenedor.querySelector(`[data-id="${id}"]`);
+            if (carta) carta.remove();
+            productosAnteriores.delete(id);
+        }
+    });
+}
+
+// AJUSTA estos campos a las columnas reales de tu tabla "product"
+function info_card(div, producto) {
+    div.innerHTML = `
+        <h3>${escapeHTML(producto.product)}</h3>
+        <p><strong>Precio:</strong> $${escapeHTML(producto.price)}</p>
+        <p><strong>Stock:</strong> ${escapeHTML(producto.category)}</p>
+    `;
+}
+
+function escapeHTML(texto) {
+    const span = document.createElement('span');
+    span.textContent = texto ?? '';
+    return span.innerHTML;
+}
+
+load_data();
+setInterval(load_data, INTERVALO_MS);
+*/

@@ -1,0 +1,82 @@
+.container-main-login {
+    height: 100dvh;
+    width: 100%;
+
+    display: grid;
+    grid-template-columns: minmax(400px, 1fr) 1fr;
+
+    transition: 0.2s;
+}
+
+
+
+
+.column-presentation {
+    background: rgb(0, 0, 0, 0.4) url('files/img-login.webp') center center / cover no-repeat;
+    background-blend-mode: darken;
+
+    transition: 0.2s;
+}
+
+.column-presentation .img-logo-login {
+    width: 300px;
+    opacity: 0.8;
+}
+
+
+
+
+.column-form {
+    padding: 3rem 5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+
+    transition: 0.2s;
+}
+
+.column-form .img-logo-login {
+    display: none;
+    width: 200px;
+
+    transition: 0.2s;
+}
+
+.column-form .text-headline {
+    color: var(--color-black);
+}
+
+.column-form .text-watermark {
+    font-family: var(--font-general);
+    font-size: var(--fz-xsmall);
+    font-weight: bold;
+
+    color: var(--color-gray);
+    opacity: 0.6;
+}
+
+@media (width < 800px) {
+    .container-main-login {
+        grid-template-columns: 1fr;
+    }
+
+    .column-presentation {
+        display: none;
+    }
+
+    .column-form {
+        background-blend-mode: lighten;
+    }
+
+    .column-form .img-logo-login {
+        display: flex;
+    }
+}
+
+
+@media (width < 500px) {
+    .column-form {
+        padding: 20px;
+    }
+}

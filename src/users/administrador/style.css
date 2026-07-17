@@ -1,0 +1,31 @@
+.name-user {
+    font-size: var(--fz-small);
+    font-weight: bold;
+}
+
+/*Management-menu*/
+.submenu-menu {
+    width: 100%;
+    margin-bottom: 15px;
+
+    display: flex;
+    gap: 5px;
+
+    overflow-y: auto;
+    scrollbar-width: none;
+}.submenu-menu .option-submenu {
+    flex: 1;
+    min-width: 100px;
+    border: 1px solid var(--color-border);
+    box-shadow: none;
+}.submenu-menu .option-submenu:hover {
+    background: var(--color-secondary-before);
+    color: var(--color-white);
+}.submenu-menu .option-submenu:disabled {
+    background: var(--color-secondary);
+    color: var(--color-white);
+}
+
+.label-input-img {
+    background: rgb(0, 0, 0, 0.3) url('../../../files/img_products/default.webp') center center / cover no-repeat;
+}

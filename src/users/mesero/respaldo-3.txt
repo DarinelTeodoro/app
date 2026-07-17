@@ -1,0 +1,332 @@
+<?php
+session_start();
+$root = '../../../';
+include($root . 'cdn.html');
+include('../../model/db.php');
+$app_name = $_SESSION['app-name'];
+
+if (empty($_SESSION['data-useractive'])) {
+    header('Location: ' . $root . 'index.php');
+} else {
+    $id_user = $_SESSION['data-useractive'];
+    $user = search_userid($id_user);
+}
+
+if (isset($_POST['logout-session'])) {
+    session_destroy();
+    header('Location: ' . $root . 'index.php');
+}
+?>
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/x-icon" href="<?= $root ?>favicon.ico">
+    <title><?= $app_name ?> - Mesero</title>
+    <link href="<?= $root ?>style.css" rel="stylesheet">
+    <link href="<?= $root ?>style-loader.css" rel="stylesheet">
+    <link href="<?= $root ?>style-alert.css" rel="stylesheet">
+    <link href="style.css" rel="stylesheet">
+</head>
+
+<body id="tag-body">
+
+    <!--DISEÑO INDEX (CONTENEDOR PRINCIPAL)-->
+    <div class="fixed-top system-navbar">
+        <div class="d-flex align-items-center">
+            <a href="home.php"><img src="<?= $root ?>files/rabbit-mesero.png" class="navbar-logo"></a>
+            <div class="lh-15">
+                <div class="ms-1"><span class="text-headline">Bienvenido</span></div>
+                <div class="ms-1"><span class="name-user"><?= $user['name'] ?></span></div>
+            </div>
+        </div>
+        <div>
+            <i class="bi bi-list" data-bs-toggle="offcanvas" data-bs-target="#staticMenu"
+                aria-controls="staticMenu"></i>
+        </div>
+    </div>
+
+    <!--MENU-->
+    <div class="offcanvas offcanvas-start" data-bs-backdrop="static" tabindex="-1" id="staticMenu"
+        aria-labelledby="staticMenuLabel">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="staticMenuLabel">Conejo Blanco</h5>
+            <i class="fi fi-br-cross icon-close" data-bs-dismiss="offcanvas" aria-label="Close"></i>
+        </div>
+        <form method="post" action="" class="offcanvas-body body-options-menu">
+            <div class="mt-1"><a href="mesero-new-comanda.php" class="btn-option-menu"><i
+                        class="fi fi-br-hamburger-soda"></i><span>Nueva Comanda</span></a></div>
+            <div class="mt-1"><button type="submit" name="logout-session" class="btn-option-menu"><i
+                        class="fi fi-br-power"></i><span>Cerrar Sesión</span></button></div>
+        </form>
+    </div>
+
+
+    <div class="container-main-home" id="container-main-home">
+        <div id="root"></div>
+    </div>
+
+    <!--ALERT-->
+    <div class="fixed-top fullscreen total-center screen-alert" id="screen-alert">
+        <div class="container-alert">
+            <div class="container-title" id="title-alert">TITLE</div>
+            <div class="container-message">
+                <p class="text-center" id="message-alert">Message</p>
+                <button class="btn-alert" onclick="hide_alert()">Aceptar</button>
+            </div>
+        </div>
+    </div>
+
+    <!--LOAD AFTER FORM-->
+    <div class="fixed-top fullscreen total-center screen-load" id="screen-load">
+        <div id="page">
+            <div id="container-ring">
+                <div id="ring"></div>
+                <div id="ring"></div>
+                <div id="ring"></div>
+                <div id="ring"></div>
+                <div id="h3">Cargando</div>
+            </div>
+        </div>
+    </div>
+
+    <!--LOAD MAIN-->
+    <div class="fixed-top fullscreen total-center screen-preload" id="screen-preload">
+        <div class="loader">
+            <svg viewBox="0 0 80 80">
+                <circle r="32" cy="40" cx="40" id="test"></circle>
+            </svg>
+        </div>
+
+        <div class="loader triangle">
+            <img src="<?= $root ?>files/rabbit-face.webp" class="img-fluid">
+        </div>
+
+        <div class="loader">
+            <svg viewBox="0 0 80 80">
+                <rect height="64" width="64" y="8" x="8"></rect>
+            </svg>
+        </div>
+    </div>
+
+</body>
+
+</html>
+
+<script src="<?= $root ?>script.js"></script>
+<script src="script.js"></script>
+
+
+<!--
+  ============================================================
+  DASHBOARD DE COMANDAS PENDIENTES - CON POLLING
+  ============================================================
+  Busca el bloque "MOCK API" más abajo: ahí está simulada
+  la llamada a tu backend. Reemplazá esa función por tu
+  fetch real (ver instrucciones en el comentario del bloque).
+  ============================================================
+-->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
+
+<script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
+
+    /* ============================================================
+       API REAL — apunta al endpoint PHP (pendientes.php)
+       ============================================================
+       Ajustá la ruta según dónde quede tu controller, ej:
+       http://localhost/tu-proyecto/controller/pendientes.php
+       ============================================================ */
+
+    const API_URL = 'api-order.php';
+
+    async function fetchPendingOrders() {
+        const res = await fetch(API_URL);
+        if (!res.ok) throw new Error(`Error ${res.status} al consultar órdenes`);
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error || 'Error al consultar órdenes');
+        return json.data; // [{ id, mesa, estado, creada_en, total, items: [{name, qty, ...}] }, ...]
+    }
+    /* ============================================================
+       FIN API REAL
+       ============================================================ */
+
+    const POLL_INTERVAL_MS = 5000;
+
+    const ESTADO_CONFIG = {
+        pendiente: { label: 'Pendiente', color: '#f2994a', bg: 'rgba(242,153,74,0.12)' },
+        preparando: { label: 'Preparando', color: '#56b6f2', bg: 'rgba(86,182,242,0.12)' },
+        lista: { label: 'Lista', color: '#4fd67a', bg: 'rgba(79,214,122,0.12)' },
+    };
+
+    function tiempoTranscurrido(ts) {
+        const diffSec = Math.floor((Date.now() - ts) / 1000);
+        const min = Math.floor(diffSec / 60);
+        const seg = diffSec % 60;
+        return `${min}:${seg.toString().padStart(2, '0')}`;
+    }
+
+    function OrderCard({ order }) {
+        const [elapsed, setElapsed] = useState(tiempoTranscurrido(order.creada_en));
+
+        useEffect(() => {
+            const id = setInterval(() => setElapsed(tiempoTranscurrido(order.creada_en)), 1000);
+            return () => clearInterval(id);
+        }, [order.creada_en]);
+
+        const cfg = ESTADO_CONFIG[order.estado] || ESTADO_CONFIG.pendiente;
+        const minutosEspera = Math.floor((Date.now() - order.creada_en) / 60000);
+        const esUrgente = minutosEspera >= 8 && order.estado !== 'lista';
+
+        return (
+            <div className="card" style={{ borderColor: esUrgente ? '#e6553f' : 'transparent' }}>
+                <div className="card-top">
+                    <span className="mesa">MESA {order.mesa}</span>
+                    <span className="badge" style={{ color: cfg.color, background: cfg.bg }}>{cfg.label}</span>
+                </div>
+                <div className="order-id">#{order.id}</div>
+                <ul className="items">
+                    {order.items.map((it, i) => (
+                        <li key={i}>{it.qty > 1 ? `${it.qty}x ` : ''}{it.name}</li>
+                    ))}
+                </ul>
+                <div className="card-bottom">
+                    <span className={"elapsed" + (esUrgente ? " urgent" : "")}>⏱ {elapsed}</span>
+                    <span className="total">${order.total.toLocaleString('es-AR')}</span>
+                </div>
+            </div>
+        );
+    }
+
+    function App() {
+        const [orders, setOrders] = useState([]);
+        const [loading, setLoading] = useState(true);
+        const [error, setError] = useState(null);
+        const [lastUpdated, setLastUpdated] = useState(null);
+        const [paused, setPaused] = useState(false);
+        const intervalRef = useRef(null);
+
+        const loadOrders = useCallback(async () => {
+            try {
+                const data = await fetchPendingOrders();
+                data.sort((a, b) => a.creada_en - b.creada_en);
+                setOrders(data);
+                setError(null);
+                setLastUpdated(new Date());
+            } catch (e) {
+                setError(e.message || 'Error al consultar órdenes');
+            } finally {
+                setLoading(false);
+            }
+        }, []);
+
+        useEffect(() => {
+            loadOrders(); // primera carga inmediata
+        }, [loadOrders]);
+
+        useEffect(() => {
+            if (paused) {
+                clearInterval(intervalRef.current);
+                return;
+            }
+            intervalRef.current = setInterval(loadOrders, POLL_INTERVAL_MS);
+            return () => clearInterval(intervalRef.current);
+        }, [paused, loadOrders]);
+
+        return (
+            <div className="app">
+                <header className="header">
+                    <div>
+                        <h1>Comandas pendientes</h1>
+                        <p className="subtitle">Actualiza cada {POLL_INTERVAL_MS / 1000}s por polling</p>
+                    </div>
+                    <div className="header-right">
+                        <span className={"live-dot" + (paused ? " paused" : "")}></span>
+                        <span className="live-text">{paused ? 'Pausado' : 'En vivo'}</span>
+                        <button className="pause-btn" onClick={() => setPaused(p => !p)}>
+                            {paused ? 'Reanudar' : 'Pausar'}
+                        </button>
+                    </div>
+                </header>
+
+                <div className="status-line">
+                    {lastUpdated && <span>Última actualización: {lastUpdated.toLocaleTimeString('es-AR')}</span>}
+                    {error && <span className="error-text">⚠ {error} — reintentando...</span>}
+                </div>
+
+                {loading ? (
+                    <div className="empty">Consultando órdenes...</div>
+                ) : orders.length === 0 ? (
+                    <div className="empty">No hay comandas pendientes 🎉</div>
+                ) : (
+                    <div className="grid">
+                        {orders.map(o => <OrderCard key={o.id} order={o} />)}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+
+
+
+
+<?php
+header('Content-Type: application/json; charset=utf-8');
+include('../../model/db.php');
+
+function build_orders($orders)
+{
+    if (!$orders)
+        return [];
+
+    $resultado = [];
+    foreach ($orders as $order) {
+        $items = order_items($order['id']);
+
+        $resultado[] = [
+            'id' => (int) $order['id'],
+            'mesa' => (int) $order['n_table'],
+            'estado' => $order['status'],
+            'creada_en' => strtotime($order['created_at']) * 1000,
+            'total' => (float) 1000,
+            'notes' => $order['note'],
+            'items' => array_map(function ($item) {
+                return [
+                    'id' => (int) $item['id'],
+                    'product_id' => $item['product_id'] !== null ? (int) $item['product_id'] : $item['extra_id'],
+                    'name' => $item['name'],
+                    'qty' => (int) $item['qty'],
+                    'price' => (float) $item['total'],
+                    'notes' => $item['destination']
+                ];
+            }, $items)
+        ];
+    }
+    return $resultado;
+}
+
+try {
+    $pending = pending_orders();
+    $data = build_orders($pending);
+
+    echo json_encode([
+        'success' => true,
+        'data' => $data,
+        'hora' => date('H:i:s')
+    ]);
+} catch (\PDOException $e) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'error' => 'Error al consultar órdenes pendientes']);
+}
