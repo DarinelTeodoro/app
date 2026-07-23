@@ -100,6 +100,34 @@ if (isset($_POST['logout-session'])) {
         </div>
     </div>
 
+    <!--MODAL PAGO-->
+    <div class="modal fade fade-payments" id="static-payment" data-bs-backdrop="static" tabindex="-1"
+        aria-labelledby="payment-title" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div><span id="payment-title"></span></div>
+                    <div><i class="fi fi-br-cross icon-close" data-bs-dismiss="modal" aria-label="Close"></i></div>
+                </div>
+                <div class="modal-body" id="payment-body"></div>
+            </div>
+        </div>
+    </div>
+
+    <!--MODAL DESCUENTO-->
+    <div class="modal fade fade-payments" id="static-discount" data-bs-backdrop="static" tabindex="-1"
+        aria-labelledby="discount-title" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div><span id="discount-title">Aplicar descuento</span></div>
+                    <div><i class="fi fi-br-cross icon-close" data-bs-dismiss="modal" aria-label="Close"></i></div>
+                </div>
+                <div class="modal-body" id="discount-body"></div>
+            </div>
+        </div>
+    </div>
+
     <!--ALERT-->
     <div class="fixed-top fullscreen total-center screen-alert" id="screen-alert">
         <div class="container-alert">
@@ -209,7 +237,24 @@ if (isset($_POST['logout-session'])) {
 
     // Helper: formatea un número como precio $X,XXX.XX
     function formatPrice(n) {
-        return Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        return Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    // Helper: precio unitario del item (base + extras) y total de línea (unitario x qty)
+    function computeBlockTotal(block) {
+        const totalExtras = (block.extras || []).reduce(
+            (sum, ex) => sum + Number(ex.price) * ex.qty,
+            0
+        );
+        const unitTotal = Number(block.price) + totalExtras;
+        return { unitTotal, lineTotal: unitTotal * block.qty };
+    }
+
+    // Helper: propina según tipo ('percent' | 'fixed' | 'none')
+    function calcTip(base, tipType, tipValue) {
+        if (tipType === 'none') return 0;
+        if (tipType === 'percent') return Number(base) * (Number(tipValue || 0) / 100);
+        return Number(tipValue || 0);
     }
 
     function OrderCard({ order, onSelect }) {
@@ -259,10 +304,403 @@ if (isset($_POST['logout-session'])) {
         );
     }
 
+    /**
+     * TipInput: selector de propina reutilizable (sin propina, porcentaje
+     * o monto fijo) más el monto ya calculado, para usar en cualquier
+     * método de pago.
+     */
+    function TipInput({ base, tipType, tipValue, onTipTypeChange, onTipValueChange }) {
+        const tipAmount = calcTip(base, tipType, tipValue);
+        return (
+            <div class="tip-input-group">
+                <div class="container-propina">
+                    <label class="form-label">Propina</label>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button"
+                            class={"btn btn-outline-secondary" + (tipType === 'none' ? ' active' : '')}
+                            onClick={() => onTipTypeChange('none')}>Sin propina</button>
+                        <button type="button"
+                            class={"btn btn-outline-secondary" + (tipType === 'percent' ? ' active' : '')}
+                            onClick={() => onTipTypeChange('percent')}>%</button>
+                        <button type="button"
+                            class={"btn btn-outline-secondary" + (tipType === 'fixed' ? ' active' : '')}
+                            onClick={() => onTipTypeChange('fixed')}>$</button>
+                    </div>
+                    <div class="container-detalles-propina">
+                        <div>
+                            {tipType !== 'none' && (
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step={tipType === 'percent' ? '1' : '0.01'}
+                                    value={tipValue}
+                                    onChange={e => onTipValueChange(e.target.value)}
+                                />
+                            )}
+                        </div>
+                        <div class="d-flex align-items-center justify-content-end">
+                            <span class="reflect-propina">${formatPrice(tipAmount)}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    /**
+     * DiscountModal: modal aparte (#static-discount) para ingresar un
+     * monto de descuento sobre el total de la orden. No se descuenta
+     * de nada más (ni items ni propinas), es un monto plano.
+     */
+    function DiscountModal({ currentDiscount, maxAmount, onConfirm, onClose }) {
+        const [value, setValue] = useState(currentDiscount > 0 ? String(currentDiscount) : '');
+
+        useEffect(() => {
+            const el = document.getElementById('static-discount');
+            const modal = bootstrap.Modal.getOrCreateInstance(el);
+            modal.show();
+
+            const handleHidden = () => onClose();
+            el.addEventListener('hidden.bs.modal', handleHidden);
+
+            return () => {
+                el.removeEventListener('hidden.bs.modal', handleHidden);
+                modal.hide();
+            };
+        }, []);
+
+        const bodyEl = document.getElementById('discount-body');
+
+        // El descuento nunca puede ser negativo ni mayor al total de la orden
+        const monto = Math.min(Math.max(Number(value || 0), 0), maxAmount);
+
+        const body = (
+            <div>
+                <div class="container-detalles-cuenta">
+                    <b>Total de la orden</b>
+                    <span>${formatPrice(maxAmount)}</span>
+                </div>
+
+                <div class="container-input-recibido">
+                    <label class="form-label">Monto a descontar</label>
+                    <input
+                        type="number"
+                        min="0"
+                        max={maxAmount}
+                        step="0.01"
+                        value={value}
+                        onChange={e => setValue(e.target.value)}
+                    />
+                    <small class="text-muted d-block mt-1">Máximo: ${formatPrice(maxAmount)}</small>
+                </div>
+
+                <div class="container-total-final">
+                    <b>Total con descuento</b>
+                    <span>${formatPrice(maxAmount - monto)}</span>
+                </div>
+
+                <div class="d-grid mt-2">
+                    <button class="btn-execute" onClick={() => {
+                        onConfirm(monto);
+                        bootstrap.Modal.getInstance(document.getElementById('static-discount')).hide();
+                    }}>
+                        Aplicar descuento
+                    </button>
+                </div>
+            </div>
+        );
+
+        return bodyEl ? ReactDOM.createPortal(body, bodyEl) : null;
+    }
+
+    /**
+     * PaymentModal: maneja los 5 métodos de cobro (efectivo, tarjeta,
+     * transferencia, mixto, cuentas separadas) sobre un modal de Bootstrap
+     * compartido (#static-payment).
+     *
+     * - efectivo: monto base + propina + "¿con cuánto paga?" -> cambio.
+     * - tarjeta / transferencia: monto base + 1 propina.
+     * - mixto: se reparte el monto entre efectivo y tarjeta (el resto),
+     *   cada uno con su propia propina.
+     * - separadas: primer paso elegís qué productos entran en esta cuenta
+     *   (checklist sobre flatItems), después elegís uno de los 4 métodos
+     *   de arriba pero aplicado solo al subtotal seleccionado.
+     */
+    function PaymentModal({ orderId, totalOrder, flatItems, initialMethod, onClose }) {
+        const [step, setStep] = useState(initialMethod === 'separadas' ? 'select-items' : 'pay');
+        const [method, setMethod] = useState(initialMethod === 'separadas' ? null : initialMethod);
+        const [selectedIds, setSelectedIds] = useState(new Set());
+
+        // Propina para métodos simples (efectivo, tarjeta, transferencia)
+        const [tipType, setTipType] = useState('none');
+        const [tipValue, setTipValue] = useState('0');
+
+        // Efectivo (no mixto): con cuánto paga -> cambio a entregar
+        const [receivedAmount, setReceivedAmount] = useState('');
+
+        // Pago mixto: monto en efectivo (el resto se calcula solo) + propina de cada parte
+        const [cashAmount, setCashAmount] = useState('');
+        const [cashTipType, setCashTipType] = useState('none');
+        const [cashTipValue, setCashTipValue] = useState('0');
+        const [cardTipType, setCardTipType] = useState('none');
+        const [cardTipValue, setCardTipValue] = useState('0');
+
+        useEffect(() => {
+            const el = document.getElementById('static-payment');
+            const modal = bootstrap.Modal.getOrCreateInstance(el);
+            modal.show();
+
+            const handleHidden = () => onClose();
+            el.addEventListener('hidden.bs.modal', handleHidden);
+
+            return () => {
+                el.removeEventListener('hidden.bs.modal', handleHidden);
+                modal.hide();
+            };
+        }, []);
+
+        const bodyEl = document.getElementById('payment-body');
+        const titleEl = document.getElementById('payment-title');
+
+        function toggleItem(id) {
+            setSelectedIds(prev => {
+                const next = new Set(prev);
+                if (next.has(id)) next.delete(id); else next.add(id);
+                return next;
+            });
+        }
+
+        const subtotalSeleccionado = flatItems
+            .filter(it => selectedIds.has(it.id))
+            .reduce((sum, it) => sum + it.lineTotal, 0);
+
+        const baseAmount = initialMethod === 'separadas' ? subtotalSeleccionado : totalOrder;
+
+        function confirmarPago(payload) {
+            // ============================================================
+            // TODO: acá va el fetch real al backend para registrar el pago,
+            // ej:
+            //
+            // fetch('crud-payment.php', {
+            //     method: 'POST',
+            //     headers: { 'Content-Type': 'application/json' },
+            //     body: JSON.stringify({ order: orderId, ...payload })
+            // });
+            //
+            // Falta definir la estructura de la tabla de pagos para armar
+            // esto bien (columnas de método, propina, monto, items pagados
+            // en el caso de cuentas separadas, etc).
+            // ============================================================
+            console.log('Pago a registrar:', { orderId, ...payload });
+            show_alert('Pago registrado', `Total cobrado: $${formatPrice(payload.total)}`);
+            bootstrap.Modal.getInstance(document.getElementById('static-payment')).hide();
+        }
+
+        let title = 'Cobrar orden';
+        let body = null;
+
+        if (step === 'select-items') {
+            title = 'Cuentas Separadas — Selecciona los Productos';
+            body = (
+                <div>
+                    <ul class="list-group mb-3">
+                        {flatItems.map(it => (
+                            <li key={it.id} class="list-group-item d-flex justify-content-between align-items-center">
+                                <div class="form-check">
+                                    <input
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        checked={selectedIds.has(it.id)}
+                                        onChange={() => toggleItem(it.id)}
+                                        id={`chk-${it.id}`}
+                                    />
+                                    <label class="form-check-label" htmlFor={`chk-${it.id}`}>
+                                        {it.qty > 1 ? `${it.qty}x ` : ''}{it.name}
+                                    </label>
+                                </div>
+                                <span>${formatPrice(it.lineTotal)}</span>
+                            </li>
+                        ))}
+                    </ul>
+                    <div class="d-flex justify-content-between fw-bold mb-3">
+                        <span>Subtotal seleccionado</span>
+                        <span>${formatPrice(subtotalSeleccionado)}</span>
+                    </div>
+                    <button
+                        class="btn btn-primary w-100"
+                        disabled={selectedIds.size === 0}
+                        onClick={() => setStep('choose-method')}
+                    >
+                        Continuar
+                    </button>
+                </div>
+            );
+        } else if (step === 'choose-method') {
+            title = 'Cuentas Separadas — Método de Pago';
+            body = (
+                <div class="d-grid gap-2">
+                    <div class="d-flex justify-content-between fw-bold mb-2">
+                        <span>Subtotal a cobrar</span>
+                        <span>${formatPrice(baseAmount)}</span>
+                    </div>
+                    <button class="btn btn-outline-success" onClick={() => { setMethod('efectivo'); setStep('pay'); }}>Efectivo</button>
+                    <button class="btn btn-outline-danger" onClick={() => { setMethod('tarjeta'); setStep('pay'); }}>Tarjeta</button>
+                    <button class="btn btn-outline-info text-dark" onClick={() => { setMethod('transferencia'); setStep('pay'); }}>Transferencia</button>
+                    <button class="btn btn-outline-danger" onClick={() => { setMethod('mixto'); setStep('pay'); }}>Mixto</button>
+                    <button class="btn btn-outline-dark" onClick={() => setStep('select-items')}>Volver a elegir productos</button>
+                </div>
+            );
+        } else if (method === 'mixto') {
+            title = 'Pago mixto';
+            const cash = Number(cashAmount || 0);
+            const card = Math.max(baseAmount - cash, 0);
+            const cashTip = calcTip(cash, cashTipType, cashTipValue);
+            const cardTip = calcTip(card, cardTipType, cardTipValue);
+            const totalACobrar = cash + card + cashTip + cardTip;
+
+            body = (
+                <div class="subbody-detalles-cuenta">
+                    <div class="container-detalles-cuenta">
+                        <b>Cuenta</b>
+                        <span>${formatPrice(baseAmount)}</span>
+                    </div>
+
+                    <div class="container-input-recibido">
+                        <label class="form-label">Monto en efectivo</label>
+                        <input
+                            type="number" min="0" max={baseAmount} step="0.01"
+                            value={cashAmount}
+                            onChange={e => setCashAmount(e.target.value)}
+                        />
+                    </div>
+
+                    <TipInput base={cash} tipType={cashTipType} tipValue={cashTipValue}
+                        onTipTypeChange={setCashTipType} onTipValueChange={setCashTipValue} />
+
+                    <div class="container-restante">
+                        <div><label class="form-label">Resto en tarjeta</label></div>
+                        <div><span class="amount">${formatPrice(card)}</span></div>
+                    </div>
+
+                    <TipInput base={card} tipType={cardTipType} tipValue={cardTipValue}
+                        onTipTypeChange={setCardTipType} onTipValueChange={setCardTipValue} />
+
+
+                    <div class="container-amounts">
+                        <div class="amount-detail">
+                            <span>Efectivo + propina</span>
+                            <span class="amount">${formatPrice(cash + cashTip)}</span>
+                        </div>
+                        <div class="amount-detail">
+                            <span>Tarjeta + propina</span>
+                            <span class="amount">${formatPrice(card + cardTip)}</span>
+                        </div>
+                        <div class="amount-detail-main">
+                            <b>Total a cobrar</b>
+                            <span class="amount">${formatPrice(totalACobrar)}</span>
+                        </div>
+                    </div>
+
+                    <div class="d-grid">
+                        <button class="btn-execute" onClick={() => confirmarPago({
+                            method: 'mixto',
+                            base: baseAmount,
+                            details: { cash, cashTip, card, cardTip },
+                            total: totalACobrar,
+                            itemIds: initialMethod === 'separadas' ? Array.from(selectedIds) : null
+                        })}>
+                            Confirmar pago
+                        </button>
+                    </div>
+                </div>
+            );
+        } else {
+            const labels = { efectivo: 'Pago en efectivo', tarjeta: 'Pago con tarjeta', transferencia: 'Pago por transferencia' };
+            title = labels[method] || 'Cobrar';
+            const tip = calcTip(baseAmount, tipType, tipValue);
+            const totalACobrar = baseAmount + tip;
+
+            // Solo aplica para efectivo (no mixto, no tarjeta/transferencia)
+            const received = Number(receivedAmount || 0);
+            const cambio = received - totalACobrar;
+
+            body = (
+                <div class="subbody-detalles-cuenta">
+                    <div class="container-detalles-cuenta">
+                        <b>Cuenta</b>
+                        <span>${formatPrice(baseAmount)}</span>
+                    </div>
+
+                    <TipInput base={baseAmount} tipType={tipType} tipValue={tipValue}
+                        onTipTypeChange={setTipType} onTipValueChange={setTipValue} />
+
+                    <div class="container-total-final">
+                        <b>Total a cobrar</b>
+                        <span>${formatPrice(totalACobrar)}</span>
+                    </div>
+
+                    {method === 'efectivo' && (
+                        <React.Fragment>
+                            <div class="container-input-recibido">
+                                <label class="form-label">¿Con cuánto paga?</label>
+                                <input
+                                    type="number" min="0" step="0.01"
+                                    value={receivedAmount}
+                                    onChange={e => setReceivedAmount(e.target.value)}
+                                />
+                            </div>
+
+                            {receivedAmount !== '' && (
+                                cambio >= 0 ? (
+                                    <div class="container-cambio">
+                                        <b>Cambio a entregar</b>
+                                        <span class="amount">${formatPrice(cambio)}</span>
+                                    </div>
+                                ) : (
+                                    <div class="container-cambio">
+                                        <b class="text-danger">Falta</b>
+                                        <span class="amount text-danger">${formatPrice(Math.abs(cambio))}</span>
+                                    </div>
+                                )
+                            )}
+                        </React.Fragment>
+                    )}
+
+                    <div class="d-grid">
+                        <button
+                            class="btn-execute"
+                            disabled={method === 'efectivo' && receivedAmount !== '' && cambio < 0}
+                            onClick={() => confirmarPago({
+                                method,
+                                base: baseAmount,
+                                tip,
+                                total: totalACobrar,
+                                received: method === 'efectivo' ? received : null,
+                                change: method === 'efectivo' ? Math.max(cambio, 0) : null,
+                                itemIds: initialMethod === 'separadas' ? Array.from(selectedIds) : null
+                            })}>
+                            Confirmar pago
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        return (
+            <React.Fragment>
+                {titleEl && ReactDOM.createPortal(title, titleEl)}
+                {bodyEl && ReactDOM.createPortal(body, bodyEl)}
+            </React.Fragment>
+        );
+    }
+
     function ItemsModal({ orderId, onClose }) {
         const [batches, setBatches] = useState([]);
         const [loading, setLoading] = useState(true);
         const [error, setError] = useState(null);
+        const [paymentMethod, setPaymentMethod] = useState(null); // 'efectivo'|'tarjeta'|'transferencia'|'mixto'|'separadas'|null
+        const [showDiscountModal, setShowDiscountModal] = useState(false);
+        const [descuento, setDescuento] = useState(0);
 
         useEffect(() => {
             const el = document.getElementById('static-orderinfo');
@@ -290,6 +728,15 @@ if (isset($_POST['logout-session'])) {
 
         const bodyEl = document.getElementById('orderinfo-body');
         const titleEl = document.getElementById('orderinfo-title');
+
+        // Lista plana de items (para "Cuentas Separadas") + total general de la orden
+        const flatItems = batches.flatMap(batch => batch.items.map(block => {
+            const { unitTotal, lineTotal } = computeBlockTotal(block);
+            return { id: block.id, name: block.name, qty: block.qty, unitTotal, lineTotal };
+        }));
+        const totalOrderBruto = flatItems.reduce((sum, it) => sum + it.lineTotal, 0);
+        // El descuento nunca puede dejar el total en negativo
+        const totalOrder = Math.max(totalOrderBruto - descuento, 0);
 
         const content = loading ? (
             <div class="message-status">
@@ -325,14 +772,7 @@ if (isset($_POST['logout-session'])) {
                         </div>
 
                         {batch.items.map(block => {
-                            // Suma de todos los extras (precio x cantidad de cada uno)
-                            const totalExtras = (block.extras || []).reduce(
-                                (sum, ex) => sum + Number(ex.price) * ex.qty,
-                                0
-                            );
-                            // Precio base del item + todos sus extras
-                            const totalBlock = Number(block.price) + totalExtras;
-                            const totalFinal = totalBlock * block.qty;
+                            const { unitTotal, lineTotal } = computeBlockTotal(block);
 
                             return (
                                 <div key={block.id} class="item-block">
@@ -376,22 +816,40 @@ if (isset($_POST['logout-session'])) {
                                     )}
                                     {block.note && <div class="subcontainer-comments">{block.note}</div>}
                                     <div class="d-flex align-items-center justify-content-between">
-                                        <span class="price-unit m-0">${formatPrice(totalBlock)}</span>
-                                        <span class="price-unit m-0 fw-bold">${formatPrice(totalFinal)}</span>
+                                        <span class="price-unit m-0">${formatPrice(unitTotal)}</span>
+                                        <span class="price-unit m-0 fw-bold">${formatPrice(lineTotal)}</span>
                                     </div>
                                 </div>
                             );
                         })}
                     </div>
                 ))}
+
+                {descuento > 0 && (
+                    <div class="container-amount-total">
+                        <span>Subtotal</span>
+                        <span>${formatPrice(totalOrderBruto)}</span>
+                    </div>
+                )}
+                {descuento > 0 && (
+                    <div class="container-amount-total">
+                        <span>Descuento</span>
+                        <span>-${formatPrice(descuento)}</span>
+                    </div>
+                )}
+                <div class="container-amount-total">
+                    <b>Total</b>
+                    <span>${formatPrice(totalOrder)}</span>
+                </div>
+
                 <div class="container-pay-options">
-                    <button class="btn btn-outline-success">Pago en Efectivo</button>
-                    <button class="btn btn-outline-danger">Pago con Tarjeta</button>
-                    <button class="btn btn-outline-info text-dark">Pago con Transferencia</button>
-                    <button class="btn btn-outline-warning text-dark">Cuentas Separadas</button>
-                    <button class="btn btn-outline-danger">Pago Mixto</button>
+                    <button class="btn btn-outline-success" onClick={() => setPaymentMethod('efectivo')}>Pago en Efectivo</button>
+                    <button class="btn btn-outline-danger" onClick={() => setPaymentMethod('tarjeta')}>Pago con Tarjeta</button>
+                    <button class="btn btn-outline-info text-dark" onClick={() => setPaymentMethod('transferencia')}>Pago con Transferencia</button>
+                    <button class="btn btn-outline-warning text-dark" onClick={() => setPaymentMethod('separadas')}>Cuentas Separadas</button>
+                    <button class="btn btn-outline-danger" onClick={() => setPaymentMethod('mixto')}>Pago Mixto</button>
                     <button class="btn btn-outline-dark">Recibo</button>
-                    <button class="btn btn-outline-dark">Descuento</button>
+                    <button class="btn btn-outline-dark" onClick={() => setShowDiscountModal(true)}>Descuento</button>
                 </div>
             </div>
         );
@@ -400,6 +858,23 @@ if (isset($_POST['logout-session'])) {
             <React.Fragment>
                 {titleEl && ReactDOM.createPortal(`Comanda #${orderId}`, titleEl)}
                 {bodyEl && ReactDOM.createPortal(content, bodyEl)}
+                {paymentMethod && (
+                    <PaymentModal
+                        orderId={orderId}
+                        totalOrder={totalOrder}
+                        flatItems={flatItems}
+                        initialMethod={paymentMethod}
+                        onClose={() => setPaymentMethod(null)}
+                    />
+                )}
+                {showDiscountModal && (
+                    <DiscountModal
+                        currentDiscount={descuento}
+                        maxAmount={totalOrderBruto}
+                        onConfirm={setDescuento}
+                        onClose={() => setShowDiscountModal(false)}
+                    />
+                )}
             </React.Fragment>
         );
     }
