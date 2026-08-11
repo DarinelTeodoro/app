@@ -39,20 +39,6 @@ if (isset($_POST['logout-session'])) {
     <link href="<?= $root ?>style-loader.css" rel="stylesheet">
     <link href="<?= $root ?>style-alert.css" rel="stylesheet">
     <link href="style.css" rel="stylesheet">
-    <style>
-        .modal-items {
-            max-height: 100%;
-            overflow-y: auto;
-        }
-        @keyframes batchHighlight {
-            0% { background-color: rgba(242, 153, 74, 0.35); }
-            100% { background-color: transparent; }
-        }
-        .batch-new {
-            animation: batchHighlight 2s ease-out;
-            border-radius: 6px;
-        }
-    </style>
 </head>
 
 <body id="tag-body">
@@ -214,7 +200,6 @@ if (isset($_POST['logout-session'])) {
         const [newBatchIds, setNewBatchIds] = useState([]);
         const knownBatchIds = useRef(null); // null = todavía no cargó nunca
         const containerRef = useRef(null);
-        const highlightTimeoutRef = useRef(null);
 
         const load = useCallback(async () => {
             try {
@@ -228,17 +213,17 @@ if (isset($_POST['logout-session'])) {
                 if (knownBatchIds.current !== null) {
                     const fresh = currentIds.filter(id => !knownBatchIds.current.has(id));
                     if (fresh.length > 0) {
+                        // CAMBIO 3: reemplaza el resaltado anterior por el nuevo
+                        // (sin timeout) — se queda marcado hasta que llegue otro
+                        // batch más nuevo, no se borra solo a los pocos segundos.
                         setNewBatchIds(fresh);
 
                         if (containerRef.current) {
                             containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
                         }
-
-                        clearTimeout(highlightTimeoutRef.current);
-                        highlightTimeoutRef.current = setTimeout(() => {
-                            setNewBatchIds(prev => prev.filter(id => !fresh.includes(id)));
-                        }, 4000);
                     }
+                    // Si no hay batches nuevos en este poll, newBatchIds se deja
+                    // tal cual está (no se toca), así el resaltado persiste.
                 }
 
                 knownBatchIds.current = new Set(currentIds);
@@ -254,10 +239,7 @@ if (isset($_POST['logout-session'])) {
         useEffect(() => {
             load();
             const id = setInterval(load, POLL_INTERVAL_MS);
-            return () => {
-                clearInterval(id);
-                clearTimeout(highlightTimeoutRef.current);
-            };
+            return () => clearInterval(id);
         }, [load]);
 
         if (loading) {
@@ -394,7 +376,7 @@ if (isset($_POST['logout-session'])) {
                     </div>
 
                     <div class="card-bottom">
-                        <button type="button">Relizado</button>
+                        <button type="button" onClick={() => order_complete(order.id)}>Relizado</button>
                     </div>
                 </div>
             </div>
@@ -408,13 +390,23 @@ if (isset($_POST['logout-session'])) {
         const [paused, setPaused] = useState(false);
         const [filtro, setFiltro] = useState('pendiente'); // coincide con el botón "Pendientes" ya disabled en el body
         const intervalRef = useRef(null);
+        // CAMBIO 2: orden de ids "congelado" — no se recalcula desde la
+        // respuesta de la API en cada poll, solo se le van agregando al
+        // final los ids que todavía no existían.
+        const orderIdsRef = useRef([]);
 
         const loadOrders = useCallback(async () => {
             try {
                 const data = await fetchPendingOrders();
-                // Ya no se reordena acá: se respeta el orden que trae la API
-                // (ORDER BY modified_at DESC en pending_orders()).
-                setOrders(data);
+                const porId = new Map(data.map(o => [o.id, o]));
+
+                // Mantiene el orden ya existente (filtrando los que ya no vienen,
+                // ej. se pagaron/cancelaron) y agrega al final los ids nuevos.
+                const idsVigentes = orderIdsRef.current.filter(id => porId.has(id));
+                const idsNuevos = data.map(o => o.id).filter(id => !idsVigentes.includes(id));
+                orderIdsRef.current = [...idsVigentes, ...idsNuevos];
+
+                setOrders(orderIdsRef.current.map(id => porId.get(id)));
                 setError(null);
             } catch (e) {
                 setError(e.message || 'Error al consultar órdenes');
@@ -446,18 +438,16 @@ if (isset($_POST['logout-session'])) {
             return () => window.removeEventListener('filtro-comandas', handleFiltro);
         }, [loadOrders]);
 
-        const filteredOrders = orders
-            .filter(o => {
-                const estado = (o.estado || '').toLowerCase();
-                if (filtro === 'todos') return true;
-                return estado === filtro;
-            })
-            .slice()
-            .sort((a, b) => {
-                if (filtro === 'finalizado') return (b.finalizada_en ?? 0) - (a.finalizada_en ?? 0);
-                if (filtro === 'todos') return (a.id ?? 0) - (b.id ?? 0);
-                return 0; // 'pendiente': se respeta el orden que ya trae la API (modified_at DESC)
-            });
+        // CAMBIO 2: el filtro ya NO reordena (se sacó el .sort() con lógica de
+        // finalizado/todos/pendiente) — el orden lo define orderIdsRef, siempre
+        // estable. Si necesitás que "Finalizados" u "Todos" sigan ordenando por
+        // otro criterio distinto al de inserción, avisame y lo agregamos aparte
+        // sin romper esta estabilidad para 'pendiente'.
+        const filteredOrders = orders.filter(o => {
+            const estado = (o.estado || '').toLowerCase();
+            if (filtro === 'todos') return true;
+            return estado === filtro;
+        });
 
         return (
             <div class="app">
@@ -479,7 +469,7 @@ if (isset($_POST['logout-session'])) {
                         </div>
                     </div>
                 ) : (
-                    <div class="list-orders" key={filtro}>
+                    <div class="list-orders">
                         {filteredOrders.map(o => <OrderCard key={o.id} order={o} />)}
                     </div>
                 )}

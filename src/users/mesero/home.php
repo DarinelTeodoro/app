@@ -240,8 +240,8 @@ if (isset($_POST['logout-session'])) {
                         <div>{order.client}</div>
                     </div>
                     <div class="d-flex gap-1">
-                        {order.barra == 1 ? <div class="signal-process"><i class="fi fi-br-martini-glass-citrus"></i></div> : ""}
-                        {order.cocina == 1 ? <div class="signal-process"><i class="fi fi-br-restaurant"></i></div> : ""}
+                        {order.barra == 1 ? <div class="signal-process"><i class="fi fi-br-martini-glass-citrus"></i></div> : order.barra == 2 ? <div class="signal-process bg-success text-white"><i class="fi fi-br-martini-glass-citrus"></i></div> : ""}
+                        {order.cocina == 1 ? <div class="signal-process"><i class="fi fi-br-restaurant"></i></div> : order.cocina == 2 ? <div class="signal-process bg-success text-white"><i class="fi fi-br-restaurant"></i></div> : ""}
                     </div>
                 </div>
                 <div class="card-bottom">
@@ -309,6 +309,7 @@ if (isset($_POST['logout-session'])) {
             </div>
         ) : (
             <div class="modal-items">
+                <a href={`mesero-edit-comanda.php?order=${orderId}`} class="btn-execute">Agregar Productos</a>
                 {batches.map(batch => (
                     <div key={batch.batch_id} class="batch-block">
                         <div class="batch-header">
@@ -319,51 +320,80 @@ if (isset($_POST['logout-session'])) {
                             </div>
                         </div>
 
-                        {batch.items.map(block => (
-                            <div key={block.id} class="item-block">
-                                <div class="subcontainer-item-block">
-                                    <div class="d-grid align-items-center gap-2">
-                                        <div class="item-main">
-                                            <span>
-                                                {block.type == 'combo' ? <i class="fi fi-br-hamburger-soda signal-combo"></i> : ''}
-                                                {block.type == 'especial' ? <i class="fi fi-br-crown signal-crown"></i> : ''}
-                                                {block.name}
-                                            </span>
-                                        </div>
+                        {batch.items.map(block => {
+                            const totalExtras = (block.extras || []).reduce(
+                                (sum, ex) => sum + Number(ex.price), 0
+                            );
+                            const unitTotal = Number(block.price) + totalExtras;
+                            const lineTotal = unitTotal * block.qty;
 
-                                        {block.type === 'combo' && block.groups && block.groups.map(g => (
-                                            <div key={g.group_id} class="combo-group">
-                                                <div class="combo-group-name">{g.group_name}</div>
-                                                <div class="item-products-selected">
-                                                    {g.items.map((it, i) => (
-                                                        <div key={i}>
-                                                            <span><b class="text-danger">{`${it.qty} x`}</b> {it.name}{it.is_extra ? <span class="fz-tag text-white bg-primary rounded ms-1 p-0 ps-2 pe-2">Extra</span> : ''}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
+                            return (
+                                <div key={block.id} class="item-block">
+                                    <div class="subcontainer-item-block">
+                                        <div class="d-grid align-items-center gap-2">
+                                            <div class="item-main">
+                                                <span>
+                                                    {block.type == 'combo' ? <i class="fi fi-br-hamburger-soda signal-combo"></i> : ''}
+                                                    {block.type == 'especial' ? <i class="fi fi-br-crown signal-crown"></i> : ''}
+                                                    {block.name}
+                                                </span>
+                                                <span class="price-unit">(${Number(block.price || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })})</span>
                                             </div>
-                                        ))}
+
+                                            {block.type === 'combo' && block.groups && block.groups.map(g => (
+                                                <div key={g.group_id} class="combo-group">
+                                                    <div class="combo-group-name">{g.group_name}</div>
+                                                    <div class="item-products-selected">
+                                                        {g.items.map((it, i) => (
+                                                            <div key={i}>
+                                                                <span><b class="text-danger">{`${it.qty} x`}</b> {it.name}{it.is_extra ? <span class="fz-tag text-white bg-primary rounded ms-1 p-0 ps-2 pe-2">Extra</span> : ''}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div class="d-flex align-items-start justify-content-center">
+                                            <div class="qty-item">{block.qty}</div>
+                                        </div>
                                     </div>
-                                    <div class="d-flex align-items-start justify-content-center">
-                                        <div class="qty-item">{block.qty}</div>
+
+                                    {block.extras && block.extras.length > 0 && (
+                                        <div class="item-extras">
+                                            {block.extras.map(ex => (
+                                                <div key={ex.id}>
+                                                    <span>+ <b class="text-danger">{`${ex.qty} x`}</b> {ex.name}</span>
+                                                    <span class="price-unit">(${Number(ex.price || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })})</span>
+                                                    {ex.note && <div class="item-note">{ex.note}</div>}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {block.note && <div class="subcontainer-comments">{block.note}</div>}
+
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <span class="price-unit m-0">${Number(unitTotal).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                                        <span class="price-unit m-0 fw-bold">${Number(lineTotal).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
                                     </div>
                                 </div>
-                                {block.extras && block.extras.length > 0 && (
-                                    <div class="item-extras">
-                                        {block.extras.map(ex => (
-                                            <div key={ex.id}>
-                                                <span>+ <b class="text-danger">{`${ex.qty} x`}</b> {ex.name}</span>
-                                                {ex.note && <div class="item-note">{ex.note}</div>}
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                                {block.note && <div class="subcontainer-comments">{block.note}</div>}
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 ))}
-                <a href={`mesero-edit-comanda.php?order=${orderId}`} class="btn-execute">Agregar Productos</a>
+
+                {(() => {
+                    const total = batches.flatMap(b => b.items).reduce((sum, block) => {
+                        const extrasTotal = (block.extras || []).reduce((s, ex) => s + Number(ex.price), 0);
+                        return sum + (Number(block.price) + extrasTotal) * block.qty;
+                    }, 0);
+                    return (
+                        <div class="container-amount-total d-flex alig-items-center justify-content-between bg-dark border border-2 border-primary rounded pt-2 pb-2 p-1">
+                            <span class="text-light">Total</span>
+                            <b class="text-warning">${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</b>
+                        </div>
+                    );
+                })()}
             </div>
         );
 

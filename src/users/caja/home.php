@@ -34,7 +34,7 @@ if (isset($_POST['logout-session'])) {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" type="image/x-icon" href="<?= $root ?>favicon.ico">
-    <title><?= $app_name ?> - Mesero</title>
+    <title><?= $app_name ?> - Caja</title>
     <link href="<?= $root ?>style.css" rel="stylesheet">
     <link href="<?= $root ?>style-loader.css" rel="stylesheet">
     <link href="<?= $root ?>style-alert.css" rel="stylesheet">
@@ -46,7 +46,7 @@ if (isset($_POST['logout-session'])) {
     <!--DISEÑO INDEX (CONTENEDOR PRINCIPAL)-->
     <div class="fixed-top system-navbar">
         <div class="d-flex align-items-center">
-            <a href="home.php"><img src="<?= $root ?>files/rabbit-mesero.png" class="navbar-logo"></a>
+            <a href="home.php"><img src="<?= $root ?>files/rabbit-cajero.png" class="navbar-logo"></a>
             <div class="lh-15">
                 <div class="ms-1"><span class="text-headline">Bienvenido</span></div>
                 <div class="ms-1"><span class="name-user"><?= $user['name'] ?></span></div>
@@ -67,7 +67,7 @@ if (isset($_POST['logout-session'])) {
         </div>
         <form method="post" action="" class="offcanvas-body body-options-menu">
             <div class="mt-1"><a href="mesero-new-comanda.php" class="btn-option-menu"><i
-                        class="fi fi-br-hamburger-soda"></i><span>Nueva Comanda</span></a></div>
+                        class="fi fi-br-cash-register"></i><span>Corte de Caja</span></a></div>
             <div class="mt-1"><button type="submit" name="logout-session" class="btn-option-menu"><i
                         class="fi fi-br-power"></i><span>Cerrar Sesión</span></button></div>
         </form>
@@ -182,10 +182,6 @@ if (isset($_POST['logout-session'])) {
 <script type="text/babel">
     const { useState, useEffect, useRef, useCallback } = React;
 
-    /* ============================================================
-       API REAL — apunta al endpoint PHP (api-order.php)
-       ============================================================ */
-
     const API_URL = 'api-order.php';
     const ITEMS_API_URL = 'info-order.php';
 
@@ -194,7 +190,7 @@ if (isset($_POST['logout-session'])) {
         if (!res.ok) throw new Error(`Error de conexión ${res.status}`);
         const json = await res.json();
         if (!json.success) throw new Error(json.error || 'Error al consultar órdenes');
-        return json.data; // [{ id, mesa, estado, creada_en, total, notes }, ...]
+        return json.data;
     }
 
     async function fetchOrderItems(orderId) {
@@ -203,14 +199,7 @@ if (isset($_POST['logout-session'])) {
         const json = await res.json();
         if (!json.success) throw new Error(json.error || 'Error al consultar items');
         return json.data;
-        // [{ batch_id, batch_seq, batch_created_at, items: [
-        //     { id, name, qty, note, type: 'producto', extras: [{id,name,qty,note}] },
-        //     { id, name, qty, note, type: 'combo', extras: [...], groups: [{group_id, group_name, group_type, items: [{name, qty, is_extra, note}]}] }
-        // ] }, ...]
     }
-    /* ============================================================
-       FIN API REAL
-       ============================================================ */
 
     const POLL_INTERVAL_MS = 5000;
 
@@ -225,7 +214,6 @@ if (isset($_POST['logout-session'])) {
         return ESTADO_CONFIG[key] || ESTADO_CONFIG.pendiente;
     }
 
-    // Cambio 1: solo minutos si es menos de 1h, si no horas + minutos (sin segundos)
     function tiempoTranscurrido(ts) {
         if (!ts) return '';
         const diffMin = Math.floor((Date.now() - ts) / 60000);
@@ -235,22 +223,19 @@ if (isset($_POST['logout-session'])) {
         return `${horas}h ${minutos}min`;
     }
 
-    // Helper: formatea un número como precio $X,XXX.XX
     function formatPrice(n) {
         return Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
-    // Helper: precio unitario del item (base + extras) y total de línea (unitario x qty)
     function computeBlockTotal(block) {
         const totalExtras = (block.extras || []).reduce(
-            (sum, ex) => sum + Number(ex.price) * ex.qty,
-            0
+            (sum, ex) => sum + Number(ex.price), 0
         );
         const unitTotal = Number(block.price) + totalExtras;
-        return { unitTotal, lineTotal: unitTotal * block.qty };
+        const pendingQty = block.qty - (block.pagado || 0);
+        return { unitTotal, lineTotal: unitTotal * block.qty, pendingQty };
     }
 
-    // Helper: propina según tipo ('percent' | 'fixed' | 'none')
     function calcTip(base, tipType, tipValue) {
         if (tipType === 'none') return 0;
         if (tipType === 'percent') return Number(base) * (Number(tipValue || 0) / 100);
@@ -262,7 +247,6 @@ if (isset($_POST['logout-session'])) {
 
         useEffect(() => {
             setElapsed(tiempoTranscurrido(order.creada_en));
-            // Se actualiza cada 30s: alcanza de sobra ya que ahora se muestra en minutos/horas
             const id = setInterval(() => setElapsed(tiempoTranscurrido(order.creada_en)), 30000);
             return () => clearInterval(id);
         }, [order.creada_en]);
@@ -274,41 +258,41 @@ if (isset($_POST['logout-session'])) {
         const esUrgente = minutosEspera >= 8 && estadoLower === 'pendiente';
 
         return (
-            <div class="card-order" onClick={() => onSelect(order.id)}
+            <div class="card-order" onClick={() => onSelect(order)}
                 style={{ borderColor: esUrgente ? 'var(--color-error)' : 'var(--color-success)' }}>
                 <div class="card-top">
-                    <div class="order-id">
-                        Orden #{order.id}
-                    </div>
+                    <div class="order-id">Orden #{order.id}</div>
                     <div>
                         <span class="badge" style={{ color: cfg.color, background: cfg.bg }}>{cfg.label}</span>
                     </div>
                 </div>
                 <div class="d-flex align-items-center justify-content-between gap-2">
                     <div class="mesa">
-                        {order.delivery == "mesa" ? <span class="order-delivery-mesa">Mesa {order.mesa}</span> : <span class="order-delivery-domicilio">Domicilio</span>}
+                        {order.delivery == "mesa"
+                            ? <span class="order-delivery-mesa">Mesa {order.mesa}</span>
+                            : <span class="order-delivery-domicilio">Domicilio</span>}
                         <div>{order.client}</div>
                     </div>
                     <div class="d-flex gap-1">
-                        {order.barra == 1 ? <div class="signal-process"><i class="fi fi-br-martini-glass-citrus"></i></div> : ""}
-                        {order.cocina == 1 ? <div class="signal-process"><i class="fi fi-br-restaurant"></i></div> : ""}
+                        {order.barra == 1 ? <div class="signal-process"><i class="fi fi-br-martini-glass-citrus"></i></div> : order.barra == 2 ? <div class="signal-process bg-success text-white"><i class="fi fi-br-martini-glass-citrus"></i></div> : ""}
+                        {order.cocina == 1 ? <div class="signal-process"><i class="fi fi-br-restaurant"></i></div> : order.cocina == 2 ? <div class="signal-process bg-success text-white"><i class="fi fi-br-restaurant"></i></div> : ""}
                     </div>
                 </div>
                 <div class="card-bottom">
                     {mostrarContador && (
-                        <div class={"d-flex align-items-center gap-1 elapsed" + (esUrgente ? " urgent" : "")}><i class="fi fi-br-clock-three"></i> {elapsed}</div>
+                        <div class={"d-flex align-items-center gap-1 elapsed" + (esUrgente ? " urgent" : "")}>
+                            <i class="fi fi-br-clock-three"></i> {elapsed}
+                        </div>
                     )}
-                    <span class="total">${(order.total ?? 0).toLocaleString('es-AR')}</span>
+                    {order.debt > 0 && order.total != order.debt
+                        ? <div><span class="text-decoration-line-through">${(order.total ?? 0).toLocaleString('es-AR')}</span> <span class="total">${(order.debt ?? 0).toLocaleString('es-AR')}</span></div>
+                        : <span class="total">${(order.total ?? 0).toLocaleString('es-AR')}</span>
+                    }
                 </div>
             </div>
         );
     }
 
-    /**
-     * TipInput: selector de propina reutilizable (sin propina, porcentaje
-     * o monto fijo) más el monto ya calculado, para usar en cualquier
-     * método de pago.
-     */
     function TipInput({ base, tipType, tipValue, onTipTypeChange, onTipValueChange }) {
         const tipAmount = calcTip(base, tipType, tipValue);
         return (
@@ -335,6 +319,7 @@ if (isset($_POST['logout-session'])) {
                                     step={tipType === 'percent' ? '1' : '0.01'}
                                     value={tipValue}
                                     onChange={e => onTipValueChange(e.target.value)}
+                                    required
                                 />
                             )}
                         </div>
@@ -347,11 +332,6 @@ if (isset($_POST['logout-session'])) {
         );
     }
 
-    /**
-     * DiscountModal: modal aparte (#static-discount) para ingresar un
-     * monto de descuento sobre el total de la orden. No se descuenta
-     * de nada más (ni items ni propinas), es un monto plano.
-     */
     function DiscountModal({ currentDiscount, maxAmount, onConfirm, onClose }) {
         const [value, setValue] = useState(currentDiscount > 0 ? String(currentDiscount) : '');
 
@@ -370,8 +350,6 @@ if (isset($_POST['logout-session'])) {
         }, []);
 
         const bodyEl = document.getElementById('discount-body');
-
-        // El descuento nunca puede ser negativo ni mayor al total de la orden
         const monto = Math.min(Math.max(Number(value || 0), 0), maxAmount);
 
         const body = (
@@ -380,25 +358,19 @@ if (isset($_POST['logout-session'])) {
                     <b>Total de la orden</b>
                     <span>${formatPrice(maxAmount)}</span>
                 </div>
-
                 <div class="container-input-recibido">
                     <label class="form-label">Monto a descontar</label>
                     <input
-                        type="number"
-                        min="0"
-                        max={maxAmount}
-                        step="0.01"
+                        type="number" min="0" max={maxAmount} step="0.01"
                         value={value}
                         onChange={e => setValue(e.target.value)}
                     />
                     <small class="text-muted d-block mt-1">Máximo: ${formatPrice(maxAmount)}</small>
                 </div>
-
                 <div class="container-total-final">
                     <b>Total con descuento</b>
                     <span>${formatPrice(maxAmount - monto)}</span>
                 </div>
-
                 <div class="d-grid mt-2">
                     <button class="btn-execute" onClick={() => {
                         onConfirm(monto);
@@ -413,37 +385,20 @@ if (isset($_POST['logout-session'])) {
         return bodyEl ? ReactDOM.createPortal(body, bodyEl) : null;
     }
 
-    /**
-     * PaymentModal: maneja los 5 métodos de cobro (efectivo, tarjeta,
-     * transferencia, mixto, cuentas separadas) sobre un modal de Bootstrap
-     * compartido (#static-payment).
-     *
-     * - efectivo: monto base + propina + "¿con cuánto paga?" -> cambio.
-     * - tarjeta / transferencia: monto base + 1 propina.
-     * - mixto: se reparte el monto entre efectivo y tarjeta (el resto),
-     *   cada uno con su propia propina.
-     * - separadas: primer paso elegís qué productos entran en esta cuenta
-     *   (checklist sobre flatItems), después elegís uno de los 4 métodos
-     *   de arriba pero aplicado solo al subtotal seleccionado.
-     */
     function PaymentModal({ orderId, totalOrder, flatItems, initialMethod, onClose }) {
         const [step, setStep] = useState(initialMethod === 'separadas' ? 'select-items' : 'pay');
         const [method, setMethod] = useState(initialMethod === 'separadas' ? null : initialMethod);
-        const [selectedIds, setSelectedIds] = useState(new Set());
-
-        // Propina para métodos simples (efectivo, tarjeta, transferencia)
+        const [selectedQty, setSelectedQty] = useState({});
         const [tipType, setTipType] = useState('none');
         const [tipValue, setTipValue] = useState('0');
-
-        // Efectivo (no mixto): con cuánto paga -> cambio a entregar
         const [receivedAmount, setReceivedAmount] = useState('');
-
-        // Pago mixto: monto en efectivo (el resto se calcula solo) + propina de cada parte
         const [cashAmount, setCashAmount] = useState('');
         const [cashTipType, setCashTipType] = useState('none');
         const [cashTipValue, setCashTipValue] = useState('0');
         const [cardTipType, setCardTipType] = useState('none');
         const [cardTipValue, setCardTipValue] = useState('0');
+        const [usarMontoParcial, setUsarMontoParcial] = useState(false);
+        const [montoParcial, setMontoParcial] = useState('');
 
         useEffect(() => {
             const el = document.getElementById('static-payment');
@@ -462,38 +417,58 @@ if (isset($_POST['logout-session'])) {
         const bodyEl = document.getElementById('payment-body');
         const titleEl = document.getElementById('payment-title');
 
-        function toggleItem(id) {
-            setSelectedIds(prev => {
-                const next = new Set(prev);
-                if (next.has(id)) next.delete(id); else next.add(id);
-                return next;
-            });
+        function setItemQty(id, qty, maxQty) {
+            const clamped = Math.min(Math.max(qty, 0), maxQty);
+            setSelectedQty(prev => ({ ...prev, [id]: clamped }));
         }
 
-        const subtotalSeleccionado = flatItems
-            .filter(it => selectedIds.has(it.id))
-            .reduce((sum, it) => sum + it.lineTotal, 0);
-
+        const subtotalSeleccionado = flatItems.reduce(
+            (sum, it) => sum + (selectedQty[it.id] || 0) * it.unitTotal, 0
+        );
+        const hayAlgoSeleccionado = Object.values(selectedQty).some(q => q > 0);
         const baseAmount = initialMethod === 'separadas' ? subtotalSeleccionado : totalOrder;
 
-        function confirmarPago(payload) {
-            // ============================================================
-            // TODO: acá va el fetch real al backend para registrar el pago,
-            // ej:
-            //
-            // fetch('crud-payment.php', {
-            //     method: 'POST',
-            //     headers: { 'Content-Type': 'application/json' },
-            //     body: JSON.stringify({ order: orderId, ...payload })
-            // });
-            //
-            // Falta definir la estructura de la tabla de pagos para armar
-            // esto bien (columnas de método, propina, monto, items pagados
-            // en el caso de cuentas separadas, etc).
-            // ============================================================
-            console.log('Pago a registrar:', { orderId, ...payload });
-            show_alert('Pago registrado', `Total cobrado: $${formatPrice(payload.total)}`);
-            bootstrap.Modal.getInstance(document.getElementById('static-payment')).hide();
+        async function confirmarPago(payload) {
+            const body = {
+                order_id: orderId,
+                method: payload.method,       // 'efectivo' | 'tarjeta' | 'transferencia' | 'mixto'
+                base: payload.base,         // monto base sin propina
+                tip: payload.tip ?? 0,     // propina total
+                total: payload.total,        // lo que se cobra (base + tip)
+                received: payload.received ?? null,  // solo efectivo: con cuánto pagó
+                change: payload.change ?? null,   // solo efectivo: cambio
+                // solo mixto:
+                details: payload.details ?? null,
+                // {cash, cashTip, card, cardTip}
+                // solo cuentas separadas:
+                item_ids: payload.itemIds ?? null,
+                // [{id, qty}] — items y cantidades que cubre este pago
+                // solo tarjeta/transferencia con monto parcial:
+                partial: payload.partial ?? null,
+                // monto real cobrado si es menor al total
+                debt: payload.debt ?? null,
+            };
+
+            try {
+                const res = await fetch('crud-payment.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const json = await res.json();
+                if (json.status === 201) {
+                    const mensaje = json.debt > 0
+                        ? `Recibido: $${formatPrice(json.received)} — Falta por pagar: $${formatPrice(json.debt)}`
+                        : `Recibido: $${formatPrice(json.received)} — Cuenta saldada`;
+                    show_alert('Pago registrado', mensaje);
+                    window.dispatchEvent(new CustomEvent('pago-registrado', { detail: { orderId } }));
+                    bootstrap.Modal.getInstance(document.getElementById('static-payment')).hide();
+                } else {
+                    show_alert(json.title || 'Error', json.message || 'No se pudo registrar el pago');
+                }
+            } catch (e) {
+                show_alert('Error', 'No se pudo conectar con el servidor');
+            }
         }
 
         let title = 'Cobrar orden';
@@ -503,51 +478,60 @@ if (isset($_POST['logout-session'])) {
             title = 'Cuentas Separadas — Selecciona los Productos';
             body = (
                 <div>
-                    <ul class="list-group mb-3">
-                        {flatItems.map(it => (
-                            <li key={it.id} class="list-group-item d-flex justify-content-between align-items-center">
-                                <div class="form-check">
-                                    <input
-                                        class="form-check-input"
-                                        type="checkbox"
-                                        checked={selectedIds.has(it.id)}
-                                        onChange={() => toggleItem(it.id)}
-                                        id={`chk-${it.id}`}
-                                    />
-                                    <label class="form-check-label" htmlFor={`chk-${it.id}`}>
-                                        {it.qty > 1 ? `${it.qty}x ` : ''}{it.name}
-                                    </label>
+                    <div class="list-products-separated">
+                        {flatItems.map(it => {
+                            const qty = selectedQty[it.id] || 0;
+                            return (
+                                <div key={it.id} class="list-group-product">
+                                    <div>
+                                        <div>{it.name}</div>
+                                        <small class="text-muted">
+                                            ${formatPrice(it.unitTotal)} c/u — {it.pendingQty} pendiente{it.pendingQty > 1 ? 's' : ''}
+                                        </small>
+                                    </div>
+                                    <div class="container-buttons-number">
+                                        <button type="button" onClick={() => setItemQty(it.id, qty - 1, it.pendingQty)}>
+                                            <i class="fi fi-br-minus-small"></i>
+                                        </button>
+                                        <span class="number">{qty}</span>
+                                        <button type="button" onClick={() => setItemQty(it.id, qty + 1, it.pendingQty)}>
+                                            <i class="fi fi-br-plus-small"></i>
+                                        </button>
+                                    </div>
+                                    <div class="number" align="end">
+                                        <span>${formatPrice(qty * it.unitTotal)}</span>
+                                    </div>
                                 </div>
-                                <span>${formatPrice(it.lineTotal)}</span>
-                            </li>
-                        ))}
-                    </ul>
-                    <div class="d-flex justify-content-between fw-bold mb-3">
-                        <span>Subtotal seleccionado</span>
-                        <span>${formatPrice(subtotalSeleccionado)}</span>
+                            );
+                        })}
                     </div>
-                    <button
-                        class="btn btn-primary w-100"
-                        disabled={selectedIds.size === 0}
-                        onClick={() => setStep('choose-method')}
-                    >
-                        Continuar
-                    </button>
+                    <div class="subtotal-selected">
+                        <span>Subtotal seleccionado</span>
+                        <b>${formatPrice(subtotalSeleccionado)}</b>
+                    </div>
+                    <div class="d-grid">
+                        <button
+                            class="btn-execute"
+                            disabled={!hayAlgoSeleccionado}
+                            onClick={() => setStep('choose-method')}>
+                            Continuar
+                        </button>
+                    </div>
                 </div>
             );
         } else if (step === 'choose-method') {
             title = 'Cuentas Separadas — Método de Pago';
             body = (
                 <div class="d-grid gap-2">
-                    <div class="d-flex justify-content-between fw-bold mb-2">
+                    <div class="subtotal-selected">
                         <span>Subtotal a cobrar</span>
-                        <span>${formatPrice(baseAmount)}</span>
+                        <b>${formatPrice(baseAmount)}</b>
                     </div>
-                    <button class="btn btn-outline-success" onClick={() => { setMethod('efectivo'); setStep('pay'); }}>Efectivo</button>
-                    <button class="btn btn-outline-danger" onClick={() => { setMethod('tarjeta'); setStep('pay'); }}>Tarjeta</button>
-                    <button class="btn btn-outline-info text-dark" onClick={() => { setMethod('transferencia'); setStep('pay'); }}>Transferencia</button>
-                    <button class="btn btn-outline-danger" onClick={() => { setMethod('mixto'); setStep('pay'); }}>Mixto</button>
-                    <button class="btn btn-outline-dark" onClick={() => setStep('select-items')}>Volver a elegir productos</button>
+                    <button class="btn btn-dark" onClick={() => { setMethod('efectivo'); setStep('pay'); }}>Efectivo</button>
+                    <button class="btn btn-dark" onClick={() => { setMethod('tarjeta'); setStep('pay'); }}>Tarjeta</button>
+                    <button class="btn btn-dark" onClick={() => { setMethod('transferencia'); setStep('pay'); }}>Transferencia</button>
+                    <button class="btn btn-dark" onClick={() => { setMethod('mixto'); setStep('pay'); }}>Mixto</button>
+                    <button class="btn btn-secondary" onClick={() => setStep('select-items')}>Volver a elegir productos</button>
                 </div>
             );
         } else if (method === 'mixto') {
@@ -564,28 +548,19 @@ if (isset($_POST['logout-session'])) {
                         <b>Cuenta</b>
                         <span>${formatPrice(baseAmount)}</span>
                     </div>
-
                     <div class="container-input-recibido">
                         <label class="form-label">Monto en efectivo</label>
-                        <input
-                            type="number" min="0" max={baseAmount} step="0.01"
-                            value={cashAmount}
-                            onChange={e => setCashAmount(e.target.value)}
-                        />
+                        <input type="number" min="0" max={baseAmount} step="0.01"
+                            value={cashAmount} onChange={e => setCashAmount(e.target.value)} />
                     </div>
-
                     <TipInput base={cash} tipType={cashTipType} tipValue={cashTipValue}
                         onTipTypeChange={setCashTipType} onTipValueChange={setCashTipValue} />
-
                     <div class="container-restante">
                         <div><label class="form-label">Resto en tarjeta</label></div>
                         <div><span class="amount">${formatPrice(card)}</span></div>
                     </div>
-
                     <TipInput base={card} tipType={cardTipType} tipValue={cardTipValue}
                         onTipTypeChange={setCardTipType} onTipValueChange={setCardTipValue} />
-
-
                     <div class="container-amounts">
                         <div class="amount-detail">
                             <span>Efectivo + propina</span>
@@ -600,29 +575,48 @@ if (isset($_POST['logout-session'])) {
                             <span class="amount">${formatPrice(totalACobrar)}</span>
                         </div>
                     </div>
-
                     <div class="d-grid">
                         <button class="btn-execute" onClick={() => confirmarPago({
-                            method: 'mixto',
-                            base: baseAmount,
+                            method: 'mixto', base: baseAmount,
                             details: { cash, cashTip, card, cardTip },
                             total: totalACobrar,
-                            itemIds: initialMethod === 'separadas' ? Array.from(selectedIds) : null
-                        })}>
-                            Confirmar pago
-                        </button>
+                            itemIds: initialMethod === 'separadas'
+                                ? Object.entries(selectedQty).filter(([, q]) => q > 0).map(([id, qty]) => ({ id: Number(id), qty }))
+                                : null
+                        })}>Confirmar pago</button>
                     </div>
                 </div>
             );
         } else {
             const labels = { efectivo: 'Pago en efectivo', tarjeta: 'Pago con tarjeta', transferencia: 'Pago por transferencia' };
             title = labels[method] || 'Cobrar';
-            const tip = calcTip(baseAmount, tipType, tipValue);
-            const totalACobrar = baseAmount + tip;
 
-            // Solo aplica para efectivo (no mixto, no tarjeta/transferencia)
+            const montoReal = usarMontoParcial ? Number(montoParcial || 0) : baseAmount;
+
+            // Propina SIEMPRE sobre baseAmount
+            const tip = calcTip(baseAmount, tipType, tipValue);
+
+            const propinaSinValor = tipType !== 'none' && (tipValue === '' || tipValue === null);
+            const totalACobrar = montoReal + tip;
             const received = Number(receivedAmount || 0);
             const cambio = received - totalACobrar;
+
+            // Abono y deuda para tarjeta/transferencia con monto parcial
+            const abonoACuenta = montoReal;                       // lo que se puso en "pagar otra cantidad"
+            const deuda = Math.max(baseAmount - montoReal, 0);     // cuenta sin propina - lo recibido
+
+            // Falta en efectivo cuando paga menos
+            const falta = received > 0 && cambio < 0 ? Math.abs(cambio) : 0;
+
+            const montoParcialInvalido = usarMontoParcial && (
+                !montoParcial || Number(montoParcial) <= 0 || Number(montoParcial) > baseAmount
+            );
+
+            // Una sola declaración de puedeConfirmar
+            const puedeConfirmar =
+                !propinaSinValor &&
+                !montoParcialInvalido &&
+                !(method === 'efectivo' && receivedAmount === '');
 
             body = (
                 <div class="subbody-detalles-cuenta">
@@ -631,35 +625,91 @@ if (isset($_POST['logout-session'])) {
                         <span>${formatPrice(baseAmount)}</span>
                     </div>
 
-                    <TipInput base={baseAmount} tipType={tipType} tipValue={tipValue}
-                        onTipTypeChange={setTipType} onTipValueChange={setTipValue} />
+                    {(method === 'tarjeta' || method === 'transferencia') && (
+                        <div class="container-input-abono">
+                            <div>
+                                <input
+                                    type="checkbox"
+                                    className="btn-check"
+                                    id="btn-check-outlined"
+                                    autoComplete="off"
+                                    checked={usarMontoParcial}
+                                    onChange={(e) => {
+                                        setUsarMontoParcial(e.target.checked);
+                                        setMontoParcial('');
+                                    }}
+                                />
 
-                    <div class="container-total-final">
-                        <b>Total a cobrar</b>
-                        <span>${formatPrice(totalACobrar)}</span>
+                                <label
+                                    className="btn btn-outline-dark"
+                                    htmlFor="btn-check-outlined"
+                                >
+                                    Abonar
+                                </label>
+                            </div>
+                            {usarMontoParcial && (
+                                <>
+                                    <input
+                                        type="number" min="0.01" max={baseAmount} step="0.01"
+                                        placeholder={`Máximo $${formatPrice(baseAmount)}`}
+                                        value={montoParcial}
+                                        onChange={e => setMontoParcial(e.target.value)}
+                                        required
+                                    />
+                                </>
+                            )}
+                        </div>
+                    )}
+
+                    <TipInput
+                        base={baseAmount}
+                        tipType={tipType}
+                        tipValue={tipValue}
+                        onTipTypeChange={t => { setTipType(t); setTipValue(''); }}
+                        onTipValueChange={setTipValue}
+                    />
+
+                    <div>
+                        {!montoParcialInvalido && montoParcial !== '' && (
+                            <>
+                                <div class="container-detalles-calculos">
+                                    <span>Abono a cuenta</span>
+                                    <b>${formatPrice(abonoACuenta)}</b>
+                                </div>
+                                <div class="container-detalles-calculos">
+                                    <span>Queda a deber</span>
+                                    <b>${formatPrice(deuda)}</b>
+                                </div>
+                            </>
+                        )}
+                        <div class="container-total-final">
+                            <b>{method === 'efectivo' ? 'Total' : 'Recibido'}</b>
+                            <span>${formatPrice(totalACobrar)}</span>
+                        </div>
                     </div>
+
 
                     {method === 'efectivo' && (
                         <React.Fragment>
                             <div class="container-input-recibido">
-                                <label class="form-label">¿Con cuánto paga?</label>
+                                <label class="form-label">Recibido</label>
                                 <input
                                     type="number" min="0" step="0.01"
                                     value={receivedAmount}
                                     onChange={e => setReceivedAmount(e.target.value)}
+                                    required
                                 />
                             </div>
-
                             {receivedAmount !== '' && (
                                 cambio >= 0 ? (
                                     <div class="container-cambio">
-                                        <b>Cambio a entregar</b>
-                                        <span class="amount">${formatPrice(cambio)}</span>
+                                        <span>Cambio:</span>
+                                        <b class="amount text-success">${formatPrice(cambio)}</b>
                                     </div>
                                 ) : (
                                     <div class="container-cambio">
-                                        <b class="text-danger">Falta</b>
-                                        <span class="amount text-danger">${formatPrice(Math.abs(cambio))}</span>
+                                        <span>Queda a deber:</span>
+                                        <b class="amount text-danger">${formatPrice(Math.abs(cambio))}</b>
                                     </div>
                                 )
                             )}
@@ -669,15 +719,19 @@ if (isset($_POST['logout-session'])) {
                     <div class="d-grid">
                         <button
                             class="btn-execute"
-                            disabled={method === 'efectivo' && receivedAmount !== '' && cambio < 0}
+                            disabled={!puedeConfirmar}
                             onClick={() => confirmarPago({
                                 method,
                                 base: baseAmount,
                                 tip,
                                 total: totalACobrar,
+                                partial: usarMontoParcial ? montoReal : null,
+                                debt: usarMontoParcial ? deuda : (falta > 0 ? falta : null),
                                 received: method === 'efectivo' ? received : null,
-                                change: method === 'efectivo' ? Math.max(cambio, 0) : null,
-                                itemIds: initialMethod === 'separadas' ? Array.from(selectedIds) : null
+                                change: method === 'efectivo' && cambio >= 0 ? cambio : null,
+                                itemIds: initialMethod === 'separadas'
+                                    ? Object.entries(selectedQty).filter(([, q]) => q > 0).map(([id, qty]) => ({ id: Number(id), qty }))
+                                    : null
                             })}>
                             Confirmar pago
                         </button>
@@ -694,11 +748,11 @@ if (isset($_POST['logout-session'])) {
         );
     }
 
-    function ItemsModal({ orderId, onClose }) {
+    function ItemsModal({ orderId, order, onClose }) {
         const [batches, setBatches] = useState([]);
         const [loading, setLoading] = useState(true);
         const [error, setError] = useState(null);
-        const [paymentMethod, setPaymentMethod] = useState(null); // 'efectivo'|'tarjeta'|'transferencia'|'mixto'|'separadas'|null
+        const [paymentMethod, setPaymentMethod] = useState(null);
         const [showDiscountModal, setShowDiscountModal] = useState(false);
         const [descuento, setDescuento] = useState(0);
 
@@ -716,7 +770,7 @@ if (isset($_POST['logout-session'])) {
             };
         }, []);
 
-        useEffect(() => {
+        const loadItems = useCallback(() => {
             let cancelado = false;
             setLoading(true);
             fetchOrderItems(orderId)
@@ -726,17 +780,37 @@ if (isset($_POST['logout-session'])) {
             return () => { cancelado = true; };
         }, [orderId]);
 
+        useEffect(() => loadItems(), [loadItems]);
+
+        useEffect(() => {
+            function handlePago(e) {
+                if (e.detail?.orderId === orderId) loadItems();
+            }
+            window.addEventListener('pago-registrado', handlePago);
+            return () => window.removeEventListener('pago-registrado', handlePago);
+        }, [orderId, loadItems]);
+
         const bodyEl = document.getElementById('orderinfo-body');
         const titleEl = document.getElementById('orderinfo-title');
 
-        // Lista plana de items (para "Cuentas Separadas") + total general de la orden
-        const flatItems = batches.flatMap(batch => batch.items.map(block => {
-            const { unitTotal, lineTotal } = computeBlockTotal(block);
-            return { id: block.id, name: block.name, qty: block.qty, unitTotal, lineTotal };
+        // Todos los items para el modal (incluyendo pagados)
+        const allItems = batches.flatMap(batch => batch.items.map(block => {
+            const { unitTotal, lineTotal, pendingQty } = computeBlockTotal(block);
+            return { id: block.id, name: block.name, qty: block.qty, pagado: block.pagado || 0, pendingQty, unitTotal, lineTotal };
         }));
-        const totalOrderBruto = flatItems.reduce((sum, it) => sum + it.lineTotal, 0);
-        // El descuento nunca puede dejar el total en negativo
-        const totalOrder = Math.max(totalOrderBruto - descuento, 0);
+
+        // Solo pendientes para cuentas separadas
+        const flatItems = allItems.filter(it => it.pendingQty > 0);
+
+        // Total bruto de toda la orden
+        const totalOrderBruto = order.total;
+
+        // Total pendiente de pago
+        const totalPendiente = order.debt;
+
+        const totalOrder = Math.max(order.debt - descuento, 0);
+
+        const hayPagados = Number(order.debt ?? 0) > 0 && order.total != order.debt;
 
         const content = loading ? (
             <div class="message-status">
@@ -756,7 +830,7 @@ if (isset($_POST['logout-session'])) {
             <div class="message-status">
                 <div class="container-system-message">
                     <i class="fi fi-br-hamburger-soda"></i>
-                    <span>Cargando lista</span>
+                    <span>Sin items</span>
                 </div>
             </div>
         ) : (
@@ -764,7 +838,7 @@ if (isset($_POST['logout-session'])) {
                 {batches.map(batch => (
                     <div key={batch.batch_id} class="batch-block">
                         <div class="batch-header">
-                            <span class="batch-number">{batch.batch_seq == 1 ? 'Creado' : 'Agregado despues'}</span>
+                            <span class="batch-number">{batch.batch_seq == 1 ? 'Creado' : 'Agregado después'}</span>
                             <div class="batch-fecha">
                                 <span class="me-2">{new Date(batch.batch_created_at).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' })}</span>
                                 <span>{new Date(batch.batch_created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</span>
@@ -773,6 +847,8 @@ if (isset($_POST['logout-session'])) {
 
                         {batch.items.map(block => {
                             const { unitTotal, lineTotal } = computeBlockTotal(block);
+                            const pagado = block.pagado || 0;
+                            const debe = unitTotal * (block.qty - pagado);
 
                             return (
                                 <div key={block.id} class="item-block">
@@ -793,63 +869,164 @@ if (isset($_POST['logout-session'])) {
                                                     <div class="item-products-selected">
                                                         {g.items.map((it, i) => (
                                                             <div key={i}>
-                                                                <span><b class="text-danger">{`${it.qty} x`}</b> {it.name}{it.is_extra ? <span class="fz-tag text-white bg-primary rounded ms-1 p-0 ps-2 pe-2">Extra</span> : ''}</span>
+                                                                <span>
+                                                                    <b class="text-danger">{`${it.qty} x`}</b> {it.name}
+                                                                    {it.is_extra ? <span class="fz-tag text-white bg-primary rounded ms-1 p-0 ps-2 pe-2">Extra</span> : ''}
+                                                                </span>
                                                             </div>
                                                         ))}
                                                     </div>
                                                 </div>
                                             ))}
                                         </div>
-                                        <div class="d-flex align-items-start justify-content-center">
-                                            <div class="qty-item">{block.qty}</div>
+                                        <div className="d-flex align-items-center justify-content-start flex-column gap-1">
+                                            <div className={`qty-item ${pagado === block.qty && pagado > 0 ? 'bg-success text-white' : ''}`}>
+                                                {block.qty}
+                                            </div>
+
+                                            {pagado > 0 && pagado < block.qty && (
+                                                <div className="pagado-indicator">
+                                                    <div className="badge border border-warning border-2 text-dark">
+                                                        <b>{pagado}</b> <span class="fw-light text-capitalize">{pagado > 1 ? 'Pagados' : 'Pagado'}</span>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
+
                                     {block.extras && block.extras.length > 0 && (
                                         <div class="item-extras">
                                             {block.extras.map(ex => (
                                                 <div key={ex.id}>
-                                                    <span>+ <b class="text-danger">{`${ex.qty} x`}</b> {ex.name}</span> <span class="price-unit">(${formatPrice(ex.price)})</span>
+                                                    <span>+ <b class="text-danger">{`${ex.qty} x`}</b> {ex.name}</span>
+                                                    <span class="price-unit">(${formatPrice(ex.price)})</span>
                                                     {ex.note && <div class="item-note">{ex.note}</div>}
                                                 </div>
                                             ))}
                                         </div>
                                     )}
+
                                     {block.note && <div class="subcontainer-comments">{block.note}</div>}
+
                                     <div class="d-flex align-items-center justify-content-between">
                                         <span class="price-unit m-0">${formatPrice(unitTotal)}</span>
-                                        <span class="price-unit m-0 fw-bold">${formatPrice(lineTotal)}</span>
+                                        <div className="pagado-indicator">
+                                            <span className="price-unit m-0">
+                                                <span className={`${pagado > 0 && pagado < block.qty ? 'fw-light text-decoration-line-through' : ' fw-bold'}`}>${formatPrice(lineTotal)}</span>
+
+                                                {pagado > 0 && pagado < block.qty && (
+                                                    <>
+                                                        {" "}
+                                                        <b class="fw-bold"> ${formatPrice(debe)}</b>
+                                                    </>
+                                                )}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             );
                         })}
                     </div>
-                ))}
+                ))
+                }
 
-                {descuento > 0 && (
-                    <div class="container-amount-total">
-                        <span>Subtotal</span>
-                        <span>${formatPrice(totalOrderBruto)}</span>
-                    </div>
-                )}
-                {descuento > 0 && (
-                    <div class="container-amount-total">
-                        <span>Descuento</span>
-                        <span>-${formatPrice(descuento)}</span>
-                    </div>
-                )}
                 <div class="container-amount-total">
                     <b>Total</b>
-                    <span>${formatPrice(totalOrder)}</span>
+                    <span>${formatPrice(order.total)}</span>
                 </div>
 
-                <div class="container-pay-options">
-                    <button class="btn btn-outline-success" onClick={() => setPaymentMethod('efectivo')}>Pago en Efectivo</button>
-                    <button class="btn btn-outline-danger" onClick={() => setPaymentMethod('tarjeta')}>Pago con Tarjeta</button>
-                    <button class="btn btn-outline-info text-dark" onClick={() => setPaymentMethod('transferencia')}>Pago con Transferencia</button>
-                    <button class="btn btn-outline-warning text-dark" onClick={() => setPaymentMethod('separadas')}>Cuentas Separadas</button>
-                    <button class="btn btn-outline-danger" onClick={() => setPaymentMethod('mixto')}>Pago Mixto</button>
-                    <button class="btn btn-outline-dark">Recibo</button>
-                    <button class="btn btn-outline-dark" onClick={() => setShowDiscountModal(true)}>Descuento</button>
+                {
+                    hayPagados && (
+                        <div class="container-amount-total">
+                            <b>Abonado</b>
+                            <span>${formatPrice(order.paid)}</span>
+                        </div>
+                    )
+                }
+
+                {
+                    hayPagados && (
+                        <div class="container-amount-total">
+                            <b>Pendiente</b>
+                            <span>${formatPrice(order.debt)}</span>
+                        </div>
+                    )
+                }
+
+                {
+                    descuento > 0 && (
+                        <div class="container-amount-total">
+                            <b>Descuento</b>
+                            <span>-${formatPrice(descuento)}</span>
+                        </div>
+                    )
+                }
+
+                {order.estado === 'finalizado' ? (
+                    <div className="p-2 border border-success border-2 rounded">
+                        <div className="text-success fw-boldr">Orden Finalizada</div>
+                        <p className="p-0 m-0" align="justify">La orden fue pagada en su totalidad.</p>
+                    </div>
+                ) : order.estado === 'cancelado' ? (
+                    <div className="p-2 border border-danger border-2 rounded">
+                        <div className="text-danger fw-boldr">Orden Cancelada</div>
+                        <p className="p-0 m-0" align="justify">{order.notes}</p>
+                    </div>
+                ) : null}
+
+                <div className="container-pay-options">
+                    <button className="btn btn-dark">Recibo</button>
+                    {order.estado === 'pendiente' ? (
+                        order.barra !== 1 && order.cocina !== 1 ? (
+                            <>
+                                <button
+                                    className="btn btn-dark"
+                                    onClick={() => setShowDiscountModal(true)}
+                                >
+                                    Descuento
+                                </button>
+
+                                <button
+                                    className="btn btn-success"
+                                    onClick={() => setPaymentMethod('efectivo')}
+                                >
+                                    Pago en Efectivo
+                                </button>
+
+                                <button
+                                    className="btn btn-danger"
+                                    onClick={() => setPaymentMethod('tarjeta')}
+                                >
+                                    Pago con Tarjeta
+                                </button>
+
+                                <button
+                                    className="btn btn-primary"
+                                    onClick={() => setPaymentMethod('transferencia')}
+                                >
+                                    Pago con Transferencia
+                                </button>
+
+                                <button
+                                    className="btn btn-info"
+                                    onClick={() => setPaymentMethod('mixto')}
+                                >
+                                    Pago Mixto
+                                </button>
+
+                                {order.deposito === 0 && (
+                                    <button
+                                        className="btn btn-warning"
+                                        onClick={() => setPaymentMethod('separadas')}
+                                    >
+                                        Cuentas Separadas
+                                    </button>
+                                )}
+                            </>
+                        ) : (
+                            <div className="p-2 text-center">Preparando...</div>
+                        )
+                    ) : null}
                 </div>
             </div>
         );
@@ -883,20 +1060,15 @@ if (isset($_POST['logout-session'])) {
         const [orders, setOrders] = useState([]);
         const [loading, setLoading] = useState(true);
         const [error, setError] = useState(null);
-        const [lastUpdated, setLastUpdated] = useState(null);
-        const [paused, setPaused] = useState(false);
-        const [filtro, setFiltro] = useState('pendiente'); // coincide con el botón "Pendientes" ya disabled en el body
+        const [filtro, setFiltro] = useState('pendiente');
         const [selectedOrder, setSelectedOrder] = useState(null);
         const intervalRef = useRef(null);
 
         const loadOrders = useCallback(async () => {
             try {
                 const data = await fetchPendingOrders();
-                // Ya no se reordena acá: se respeta el orden que trae la API
-                // (ORDER BY modified_at DESC en pending_orders()).
                 setOrders(data);
                 setError(null);
-                setLastUpdated(new Date());
             } catch (e) {
                 setError(e.message || 'Error al consultar órdenes');
             } finally {
@@ -904,29 +1076,31 @@ if (isset($_POST['logout-session'])) {
             }
         }, []);
 
+        useEffect(() => { loadOrders(); }, [loadOrders]);
+
         useEffect(() => {
-            loadOrders();
+            intervalRef.current = setInterval(loadOrders, POLL_INTERVAL_MS);
+            return () => clearInterval(intervalRef.current);
         }, [loadOrders]);
 
         useEffect(() => {
-            if (paused) {
-                clearInterval(intervalRef.current);
-                return;
-            }
-            intervalRef.current = setInterval(loadOrders, POLL_INTERVAL_MS);
-            return () => clearInterval(intervalRef.current);
-        }, [paused, loadOrders]);
-
-        // Escucha el evento que disparan los botones de filtro (fuera de React, en el body).
-        // FIX: además de cambiar el filtro, dispara un fetch inmediato — antes había que
-        // esperar al próximo poll (hasta 5s) para ver datos actualizados.
-        useEffect(() => {
-            function handleFiltro(e) {
-                setFiltro(e.detail);
-                loadOrders();
-            }
+            function handleFiltro(e) { setFiltro(e.detail); loadOrders(); }
             window.addEventListener('filtro-comandas', handleFiltro);
             return () => window.removeEventListener('filtro-comandas', handleFiltro);
+        }, [loadOrders]);
+
+        useEffect(() => {
+            async function handlePago(e) {
+                await loadOrders();
+                // Después de recargar, actualiza el selectedOrder con los datos frescos
+                setOrders(prev => {
+                    const ordenActualizada = prev.find(o => o.id === e.detail?.orderId);
+                    if (ordenActualizada) setSelectedOrder(ordenActualizada);
+                    return prev;
+                });
+            }
+            window.addEventListener('pago-registrado', handlePago);
+            return () => window.removeEventListener('pago-registrado', handlePago);
         }, [loadOrders]);
 
         const filteredOrders = orders
@@ -939,16 +1113,15 @@ if (isset($_POST['logout-session'])) {
             .sort((a, b) => {
                 if (filtro === 'finalizado') return (b.finalizada_en ?? 0) - (a.finalizada_en ?? 0);
                 if (filtro === 'todos') return (a.id ?? 0) - (b.id ?? 0);
-                return 0; // 'pendiente': se respeta el orden que ya trae la API (modified_at DESC)
+                return 0;
             });
 
         return (
             <div class="app">
                 <div class="title-comandas">
                     <div><span class="title"></span></div>
-
                     <div class="status-line">
-                        {error && <span class="error-text">{error} - reintentando...</span>}
+                        {error && <span class="error-text">{error} - Reintentando...</span>}
                     </div>
                 </div>
 
@@ -973,7 +1146,7 @@ if (isset($_POST['logout-session'])) {
                 )}
 
                 {selectedOrder && (
-                    <ItemsModal orderId={selectedOrder} onClose={() => setSelectedOrder(null)} />
+                    <ItemsModal orderId={selectedOrder.id} order={selectedOrder} onClose={() => setSelectedOrder(null)} />
                 )}
             </div>
         );

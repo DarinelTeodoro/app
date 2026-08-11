@@ -18,9 +18,11 @@ function build_orders($orders)
             'client' => $order['client'],
             'estado' => $order['status'],
             'creada_en' => strtotime($order['modified_at']) * 1000,
-            // finished_at puede venir NULL si la orden todavía no se finalizó/canceló
             'finalizada_en' => $order['finished_at'] ? strtotime($order['finished_at']) * 1000 : null,
+            'deposito' => $order['deposit'],
             'total' => $order['total'],
+            'paid' => $order['paid'],
+            'debt' => $order['debt'],
             'notes' => $order['note'],
             'cocina' => $order['cocina'],
             'barra' => $order['barra']

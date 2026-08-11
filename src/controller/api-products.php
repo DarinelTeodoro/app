@@ -47,8 +47,21 @@ try {
                 ];
             }
 
+            $itemId = match ($row['type']) {
+                'variante' => $row['variant'],
+                'extra' => $row['extra'],
+                'producto' => $row['product'],
+            };
+ 
+            $destinationId = match ($row['type']) {
+                'variante' => $row['product'],
+                'extra' => $row['extra'],
+                'producto' => $row['product'],
+            };
+
             $grupos[$gid]['products'][] = [
-                'id' => $row['type'] == 'extra' ? $row['extra'] : $row['product'],
+                'id' => $itemId,
+                'destination' => get_destination($row['type'], $destinationId),
                 'name' => $row['name'],
                 'type' => $row['type'],
                 'qty' => (int) $row['qty']

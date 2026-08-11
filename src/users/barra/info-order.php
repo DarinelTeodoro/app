@@ -18,7 +18,6 @@ function build_combo_groups($selected)
             $grupos[$gid] = [
                 'group_id' => $gid,
                 'group_name' => $row['name_group_item'],
-                'group_type' => $row['type_group_item'],
                 'items' => []
             ];
         }
@@ -43,37 +42,36 @@ function build_item_blocks($items)
 
     $resultado = [];
     foreach ($items as $item) {
-        if ($item['type'] === 'extra')
-            continue; // se muestra anidado bajo su producto/combo principal
 
         $bloque = [
-            'id' => (int) $item['id'],
-            'name' => $item['name'],
-            'qty' => (int) $item['qty'],
-            'note' => $item['note'],
-            'type' => $item['type'],
-            'batch_id' => $item['batch'] !== null ? (int) $item['batch'] : null,
-            'batch_seq' => $item['seq'] ?? null,
+            'id'            => (int) $item['id'],
+            'name'          => $item['name'],
+            'qty'           => (int) $item['qty'],
+            'note'          => $item['note'],
+            'type'          => $item['type'],
+            'batch_id'      => $item['batch'] !== null ? (int) $item['batch'] : null,
+            'batch_seq'     => $item['seq']     ?? null,
             'batch_created' => $item['created'] ?? null,
         ];
 
-        // Extras "sueltos" con extra_item apuntando a este item — aplica
-        // tanto para productos normales como para combos.
-        $extras = array_filter($items, function ($i) use ($item) {
-            return $i['type'] === 'extra' && (int) $i['extra_item'] === (int) $item['id'];
-        });
-
+        // ✅ Extras desde su propia tabla, relacionados por id_item
+        $extras_raw = extras_ordered($item['id'], 'barra') ?: [];
         $bloque['extras'] = array_map(function ($e) {
             return [
-                'id' => (int) $e['id'],
+                'id'   => (int) $e['id'],
                 'name' => $e['name'],
-                'qty' => (int) $e['qty'],
-                'note' => $e['note'],
+                'qty'  => (int) $e['qty']
             ];
-        }, array_values($extras));
+        }, $extras_raw);
 
         if ($item['type'] === 'combo') {
             $bloque['groups'] = build_combo_groups(view_combo_selected($item['id'], 'barra'));
+
+            $count = count($bloque['groups']);
+
+            if ($count == 0) {
+                continue;
+            }
         }
 
         $resultado[] = $bloque;

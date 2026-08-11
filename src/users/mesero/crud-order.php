@@ -4,17 +4,15 @@ include('../../model/db.php');
 date_default_timezone_set('America/Mexico_City');
 $user_loged = $_SESSION['data-useractive'];
 
-function insert_item($conexion, $id_batchid, $id_saleorder, $tipo, $id_producto, $id_variante, $id_combo, $id_extra, $extra_item, $nombre, $cantidad, $precio_base, $total, $nota, $fecha, $destino)
+function insert_item($conexion, $id_batchid, $id_saleorder, $tipo, $id_producto, $id_variante, $id_combo, $nombre, $cantidad, $precio_base, $total, $nota, $fecha, $destino)
 {
-    $insert = $conexion->prepare("INSERT INTO items(batch, sale_order, type, product_id, variant_id, combo_id, extra_id, extra_item, name, qty, price_unit, total, note, added_at, destination) VALUES (:batch, :sale_order, :type, :product_id, :variant_id, :combo_id, :extra_id, :extra_item, :name, :qty, :price_unit, :total, :note, :added_at, :destination)");
+    $insert = $conexion->prepare("INSERT INTO items(batch, sale_order, type, product_id, variant_id, combo_id, name, qty, price_unit, total, note, added_at, destination) VALUES (:batch, :sale_order, :type, :product_id, :variant_id, :combo_id, :name, :qty, :price_unit, :total, :note, :added_at, :destination)");
     $insert->bindParam(':batch', $id_batchid);
     $insert->bindParam(':sale_order', $id_saleorder);
     $insert->bindParam(':type', $tipo);
     $insert->bindParam(':product_id', $id_producto);
     $insert->bindParam(':variant_id', $id_variante);
     $insert->bindParam(':combo_id', $id_combo);
-    $insert->bindParam(':extra_id', $id_extra);
-    $insert->bindParam(':extra_item', $extra_item);
     $insert->bindParam(':name', $nombre);
     $insert->bindParam(':qty', $cantidad);
     $insert->bindParam(':price_unit', $precio_base);
@@ -27,17 +25,35 @@ function insert_item($conexion, $id_batchid, $id_saleorder, $tipo, $id_producto,
     return $conexion->lastInsertId();
 }
 
-function insert_product_selected($conexion, $id_combo, $id_item, $cbp_type_item, $cbp_name, $cbp_group_item, $cbp_group_name, $cbp_qty, $cbp_id)
+function insert_extra($conexion, $order, $item, $extra, $name, $destination, $qty, $price, $total)
 {
-    $insert = $conexion->prepare("INSERT INTO combo_item_selected(combo, item, type_item, name_item, group_item, name_group_item, qty, forean) VALUES (:combo, :item, :type_item, :name_item, :group_item, :name_group_item, :qty, :forean)");
+    $insert = $conexion->prepare("INSERT INTO items_extras(orden, id_item, id_extra, name, destination, qty, price, total) VALUES (:orden, :item, :extra, :name, :destination, :qty, :price, :total)");
+    $insert->bindParam(':orden', $order);
+    $insert->bindParam(':item', $item);
+    $insert->bindParam(':extra', $extra);
+    $insert->bindParam(':name', $name);
+    $insert->bindParam(':destination', $destination);
+    $insert->bindParam(':qty', $qty);
+    $insert->bindParam(':price', $price);
+    $insert->bindParam(':total', $total);
+    $insert->execute();
+
+    return $conexion->lastInsertId();
+}
+
+function insert_product_selected($conexion, $id_combo, $id_item, $cbp_type_item, $cbp_name, $cbp_group_item, $cbp_group_name, $cbp_qty, $cbp_id, $order, $destination)
+{
+    $insert = $conexion->prepare("INSERT INTO combo_item_selected(combo, item, type_item, name_item, group_item, name_group_item, destination, qty, forean, id_order) VALUES (:combo, :item, :type_item, :name_item, :group_item, :name_group_item, :destination, :qty, :forean, :order)");
     $insert->bindParam(':combo', $id_combo);
     $insert->bindParam(':item', $id_item);
     $insert->bindParam(':type_item', $cbp_type_item);
     $insert->bindParam(':name_item', $cbp_name);
     $insert->bindParam(':group_item', $cbp_group_item);
     $insert->bindParam(':name_group_item', $cbp_group_name);
+    $insert->bindParam(':destination', $destination);
     $insert->bindParam(':qty', $cbp_qty);
     $insert->bindParam(':forean', $cbp_id);
+    $insert->bindParam(':order', $order);
     $insert->execute();
 
     return $conexion->lastInsertId();
@@ -100,8 +116,6 @@ if ($_POST['request'] == 'add-order') {
             $id_producto = $item['id'];
             $id_variante = null;
             $id_combo = null;
-            $id_extra = null;
-            $extra_item = null;
             $nombre = $item['product'];
             $destino = $item['destination'];
             $precio_base = $item['basePrice'];
@@ -109,13 +123,11 @@ if ($_POST['request'] == 'add-order') {
             $cantidad = $item['qty'];
             $nota = $item['comment'];
 
-            $id_item = insert_item($conexion, $id_batchid, $id_saleorder, $tipo, $id_producto, $id_variante, $id_combo, $id_extra, $extra_item, $nombre, $cantidad, $precio_base, $total, $nota, $fecha, $destino);
+            $id_item = insert_item($conexion, $id_batchid, $id_saleorder, $tipo, $id_producto, $id_variante, $id_combo, $nombre, $cantidad, $precio_base, $total, $nota, $fecha, $destino);
         }if ($tipo == 'especial') {
             $id_producto = null;
             $id_variante = null;
             $id_combo = null;
-            $id_extra = null;
-            $extra_item = null;
             $nombre = $item['product'];
             $destino = $item['destination'];
             $precio_base = $item['basePrice'];
@@ -123,13 +135,11 @@ if ($_POST['request'] == 'add-order') {
             $cantidad = $item['qty'];
             $nota = $item['comment'];
 
-            $id_item = insert_item($conexion, $id_batchid, $id_saleorder, $tipo, $id_producto, $id_variante, $id_combo, $id_extra, $extra_item, $nombre, $cantidad, $precio_base, $total, $nota, $fecha, $destino);
+            $id_item = insert_item($conexion, $id_batchid, $id_saleorder, $tipo, $id_producto, $id_variante, $id_combo, $nombre, $cantidad, $precio_base, $total, $nota, $fecha, $destino);
         } else if ($tipo == 'variante') {
             $id_producto = $item['id'];
             $id_variante = $item['variant_id'];
             $id_combo = null;
-            $id_extra = null;
-            $extra_item = null;
             $nombre = $item['product'];
             $destino = $item['destination'];
             $precio_base = $item['basePrice'];
@@ -137,13 +147,11 @@ if ($_POST['request'] == 'add-order') {
             $cantidad = $item['qty'];
             $nota = $item['comment'];
 
-            $id_item = insert_item($conexion, $id_batchid, $id_saleorder, $tipo, $id_producto, $id_variante, $id_combo, $id_extra, $extra_item, $nombre, $cantidad, $precio_base, $total, $nota, $fecha, $destino);
+            $id_item = insert_item($conexion, $id_batchid, $id_saleorder, $tipo, $id_producto, $id_variante, $id_combo, $nombre, $cantidad, $precio_base, $total, $nota, $fecha, $destino);
         } else if ($tipo == 'combo' && !empty($item['comboItems'])) {
             $id_producto = null;
             $id_variante = null;
             $id_combo = $item['id'];
-            $id_extra = null;
-            $extra_item = null;
             $nombre = $item['product'];
             $destino = 'Ambos';
             $precio_base = $item['basePrice'];
@@ -151,35 +159,31 @@ if ($_POST['request'] == 'add-order') {
             $cantidad = $item['qty'];
             $nota = $item['comment'];
 
-            $id_item = insert_item($conexion, $id_batchid, $id_saleorder, $tipo, $id_producto, $id_variante, $id_combo, $id_extra, $extra_item, $nombre, $cantidad, $precio_base, $total, $nota, $fecha, $destino);
+            $id_item = insert_item($conexion, $id_batchid, $id_saleorder, $tipo, $id_producto, $id_variante, $id_combo, $nombre, $cantidad, $precio_base, $total, $nota, $fecha, $destino);
 
             foreach ($item['comboItems'] as $ci) {
                 $cbp_id = $ci['id'];
+                $cbp_destination = $ci['destination'];
                 $cbp_name = $ci['name'];
                 $cbp_qty = $ci['qty'];
                 $cbp_group_item = $ci['group_id'];
                 $cbp_group_name = $ci['group_name'];
                 $cbp_type_item = $ci['type'];
 
-                $id_selected = insert_product_selected($conexion, $id_combo, $id_item, $cbp_type_item, $cbp_name, $cbp_group_item, $cbp_group_name, $cbp_qty, $cbp_id);
+                $id_selected = insert_product_selected($conexion, $id_combo, $id_item, $cbp_type_item, $cbp_name, $cbp_group_item, $cbp_group_name, $cbp_qty, $cbp_id, $id_saleorder, $cbp_destination);
             }
         }
 
         foreach ($item['extras'] as $extra) {
-            $e_tipo = 'extra';
-            $e_id_producto = null;
-            $e_id_variante = null;
-            $e_id_combo = null;
-            $e_id_extra = $extra['id'];
             $e_extra_item = $id_item;
+            $e_id_extra = $extra['id'];
             $e_nombre = $extra['extra'];
             $e_destino = $extra['destination'];
-            $e_precio_base = $extra['price'];
             $e_cantidad = $extra['qty'];
-            $e_nota = null;
+            $e_precio_base = $extra['price'];
             $e_total = (float) $extra['price'] * (int) $extra['qty'];
 
-            insert_item($conexion, $id_batchid, $id_saleorder, $e_tipo, $e_id_producto, $e_id_variante, $e_id_combo, $e_id_extra, $e_extra_item, $e_nombre, $e_cantidad, $e_precio_base, $e_total, $e_nota, $fecha, $e_destino);
+            insert_extra($conexion, $id_saleorder, $e_extra_item, $e_id_extra, $e_nombre, $e_destino, $e_cantidad, $e_precio_base, $e_total);
         }
 
     }
@@ -234,8 +238,6 @@ if ($_POST['request'] == 'edit-order') {
             $id_producto = $item['id'];
             $id_variante = null;
             $id_combo = null;
-            $id_extra = null;
-            $extra_item = null;
             $nombre = $item['product'];
             $destino = $item['destination'];
             $precio_base = $item['basePrice'];
@@ -243,13 +245,11 @@ if ($_POST['request'] == 'edit-order') {
             $cantidad = $item['qty'];
             $nota = $item['comment'];
 
-            $id_item = insert_item($conexion, $id_batchid, $id_saleorder, $tipo, $id_producto, $id_variante, $id_combo, $id_extra, $extra_item, $nombre, $cantidad, $precio_base, $total, $nota, $fecha, $destino);
+            $id_item = insert_item($conexion, $id_batchid, $id_saleorder, $tipo, $id_producto, $id_variante, $id_combo, $nombre, $cantidad, $precio_base, $total, $nota, $fecha, $destino);
         }if ($tipo == 'especial') {
             $id_producto = null;
             $id_variante = null;
             $id_combo = null;
-            $id_extra = null;
-            $extra_item = null;
             $nombre = $item['product'];
             $destino = $item['destination'];
             $precio_base = $item['basePrice'];
@@ -257,13 +257,11 @@ if ($_POST['request'] == 'edit-order') {
             $cantidad = $item['qty'];
             $nota = $item['comment'];
 
-            $id_item = insert_item($conexion, $id_batchid, $id_saleorder, $tipo, $id_producto, $id_variante, $id_combo, $id_extra, $extra_item, $nombre, $cantidad, $precio_base, $total, $nota, $fecha, $destino);
+            $id_item = insert_item($conexion, $id_batchid, $id_saleorder, $tipo, $id_producto, $id_variante, $id_combo, $nombre, $cantidad, $precio_base, $total, $nota, $fecha, $destino);
         } else if ($tipo == 'variante') {
             $id_producto = $item['id'];
             $id_variante = $item['variant_id'];
             $id_combo = null;
-            $id_extra = null;
-            $extra_item = null;
             $nombre = $item['product'];
             $destino = $item['destination'];
             $precio_base = $item['basePrice'];
@@ -271,13 +269,11 @@ if ($_POST['request'] == 'edit-order') {
             $cantidad = $item['qty'];
             $nota = $item['comment'];
 
-            $id_item = insert_item($conexion, $id_batchid, $id_saleorder, $tipo, $id_producto, $id_variante, $id_combo, $id_extra, $extra_item, $nombre, $cantidad, $precio_base, $total, $nota, $fecha, $destino);
+            $id_item = insert_item($conexion, $id_batchid, $id_saleorder, $tipo, $id_producto, $id_variante, $id_combo, $nombre, $cantidad, $precio_base, $total, $nota, $fecha, $destino);
         } else if ($tipo == 'combo' && !empty($item['comboItems'])) {
             $id_producto = null;
             $id_variante = null;
             $id_combo = $item['id'];
-            $id_extra = null;
-            $extra_item = null;
             $nombre = $item['product'];
             $destino = 'Ambos';
             $precio_base = $item['basePrice'];
@@ -285,35 +281,31 @@ if ($_POST['request'] == 'edit-order') {
             $cantidad = $item['qty'];
             $nota = $item['comment'];
 
-            $id_item = insert_item($conexion, $id_batchid, $id_saleorder, $tipo, $id_producto, $id_variante, $id_combo, $id_extra, $extra_item, $nombre, $cantidad, $precio_base, $total, $nota, $fecha, $destino);
+            $id_item = insert_item($conexion, $id_batchid, $id_saleorder, $tipo, $id_producto, $id_variante, $id_combo, $nombre, $cantidad, $precio_base, $total, $nota, $fecha, $destino);
 
             foreach ($item['comboItems'] as $ci) {
                 $cbp_id = $ci['id'];
+                $cbp_destination = $ci['destination'];
                 $cbp_name = $ci['name'];
                 $cbp_qty = $ci['qty'];
                 $cbp_group_item = $ci['group_id'];
                 $cbp_group_name = $ci['group_name'];
                 $cbp_type_item = $ci['type'];
 
-                $id_selected = insert_product_selected($conexion, $id_combo, $id_item, $cbp_type_item, $cbp_name, $cbp_group_item, $cbp_group_name, $cbp_qty, $cbp_id);
+                $id_selected = insert_product_selected($conexion, $id_combo, $id_item, $cbp_type_item, $cbp_name, $cbp_group_item, $cbp_group_name, $cbp_qty, $cbp_id, $id_saleorder, $cbp_destination);
             }
         }
 
         foreach ($item['extras'] as $extra) {
-            $e_tipo = 'extra';
-            $e_id_producto = null;
-            $e_id_variante = null;
-            $e_id_combo = null;
-            $e_id_extra = $extra['id'];
             $e_extra_item = $id_item;
+            $e_id_extra = $extra['id'];
             $e_nombre = $extra['extra'];
             $e_destino = $extra['destination'];
-            $e_precio_base = $extra['price'];
             $e_cantidad = $extra['qty'];
-            $e_nota = null;
+            $e_precio_base = $extra['price'];
             $e_total = (float) $extra['price'] * (int) $extra['qty'];
 
-            insert_item($conexion, $id_batchid, $id_saleorder, $e_tipo, $e_id_producto, $e_id_variante, $e_id_combo, $e_id_extra, $e_extra_item, $e_nombre, $e_cantidad, $e_precio_base, $e_total, $e_nota, $fecha, $e_destino);
+            insert_extra($conexion, $id_saleorder, $e_extra_item, $e_id_extra, $e_nombre, $e_destino, $e_cantidad, $e_precio_base, $e_total);
         }
 
     }

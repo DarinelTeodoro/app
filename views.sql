@@ -38,31 +38,20 @@ FROM db_app.extra e;
 
 /*Vista 2*/
 
-CREATE VIEW `vista_combo_item_destino` AS
+CREATE OR REPLACE VIEW view_combo_item_selected AS
 SELECT
-    cis.id                AS id,
-    cis.combo              AS combo,
-    cis.item                AS item,
-    cis.type_item           AS type_item,
-    cis.name_item            AS name_item,
-    cis.group_item            AS group_item,
-    cis.name_group_item        AS name_group_item,
-    cis.type_group_item         AS type_group_item,
-    cis.qty                      AS qty,
-    cis.forean                    AS forean,
-    CASE 
-        WHEN cis.type_item = 'extra' THEN e.destination 
-        ELSE c.destination 
-    END                            AS destination
-FROM db_app.combo_item_selected cis
-LEFT JOIN db_app.product p 
-    ON p.id = cis.forean 
-    AND cis.type_item IN ('producto', 'variante')
-LEFT JOIN db_app.category c 
-    ON c.id = p.category
-LEFT JOIN db_app.extra e 
-    ON e.id = cis.forean 
-    AND cis.type_item = 'extra';
+    cis.id              AS id,
+    cis.combo           AS combo,
+    cis.item            AS item,
+    cis.type_item       AS type_item,
+    cis.name_item       AS name_item,
+    cis.group_item      AS group_item,
+    cis.name_group_item AS name_group_item,
+    cis.qty             AS qty,
+    cis.forean          AS forean,
+    cis.destination     AS destination,,
+    cis.realized        AS realized
+FROM db_app.combo_item_selected cis;
 
 
 
@@ -110,7 +99,7 @@ LEFT JOIN db_app.extra e
 
 
 /*Vista 4*/
-CREATE VIEW `vista_items_batch` AS
+CREATE OR REPLACE VIEW `view_items` AS
 SELECT
     i.id                AS id,
     i.batch              AS batch,
@@ -119,8 +108,6 @@ SELECT
     i.product_id             AS product_id,
     i.variant_id               AS variant_id,
     i.combo_id                   AS combo_id,
-    i.extra_id                     AS extra_id,
-    i.extra_item                     AS extra_item,
     i.name                             AS name,
     i.qty                                AS qty,
     i.price_unit                           AS price_unit,
@@ -229,67 +216,60 @@ FROM db_app.combo c;
 
 
 /*Vista 8*/
-CREATE VIEW `vista_sale_order_status` AS
+CREATE OR REPLACE VIEW `view-order` AS
 SELECT
-    so.id           AS id,
-    so.delivery       AS delivery,
-    so.n_table          AS n_table,
-    so.client              AS client,
-    so.waiter                AS waiter,
-    so.status                  AS status,
-    so.created_at                AS created_at,
-    so.modified_at                  AS modified_at,
-    so.finished_at                    AS finished_at,
-    so.deposit                          AS deposit,
-    so.note                               AS note,
-    COALESCE(
-        SUM(
-            CASE 
-                WHEN i.type = 'extra' THEN i.total * p.qty 
-                ELSE i.total 
-            END
-        ), 0
-    )                                        AS total,
-    u.name                                     AS name,
+    so.id AS id,
+    so.delivery AS delivery,
+    so.n_table AS n_table,
+    so.client AS client,
+    so.waiter AS waiter,
+    so.status AS status,
+    so.created_at AS created_at,
+    so.modified_at AS modified_at,
+    so.finished_at AS finished_at,
+    so.deposit AS deposit,
+    so.note AS note,
 
-    -- Estado de cocina
-    CASE 
-        WHEN SUM(CASE WHEN i.destination IN ('cocina', 'Ambos') THEN 1 ELSE 0 END) = 0 
-            THEN 0
-        WHEN SUM(
-                CASE 
-                    WHEN i.destination = 'cocina' AND i.realized <> 2 THEN 1
-                    WHEN i.destination = 'Ambos' AND i.realized NOT IN (3, 5) THEN 1
-                    ELSE 0
-                END
-             ) = 0 
-            THEN 2
-        ELSE 1
-    END                                          AS cocina,
+    -- total del producto + (suma de sus extras) x cantidad del producto
+    COALESCE(SUM(i.total + COALESCE(ie.extras_total, 0) * i.qty), 0) AS total,
 
-    -- Estado de barra
-    CASE 
-        WHEN SUM(CASE WHEN i.destination IN ('barra', 'Ambos') THEN 1 ELSE 0 END) = 0 
-            THEN 0
-        WHEN SUM(
-                CASE 
-                    WHEN i.destination = 'barra' AND i.realized <> 2 THEN 1
-                    WHEN i.destination = 'Ambos' AND i.realized NOT IN (4, 5) THEN 1
-                    ELSE 0
-                END
-             ) = 0 
-            THEN 2
-        ELSE 1
-    END                                          AS barra
+    u.name AS name,
+
+    -- CAMBIO: realized=0 es pendiente, realized=1 es terminado (antes era 1/2)
+    -- 0 = sin productos para esa estación
+    -- 1 = hay al menos uno pendiente (realized=0)
+    -- 2 = todos están terminados (realized=1)
+    MAX(est.cocina) AS cocina,
+    MAX(est.barra) AS barra
 
 FROM db_app.items i
-LEFT JOIN db_app.items p 
-    ON p.id = i.extra_item 
-    AND i.type = 'extra'
-LEFT JOIN db_app.sale_order so 
+LEFT JOIN (
+    SELECT id_item, SUM(total) AS extras_total
+    FROM db_app.items_extras
+    GROUP BY id_item
+) ie ON ie.id_item = i.id
+LEFT JOIN db_app.sale_order so
     ON so.id = i.sale_order
-LEFT JOIN db_app.user u 
+LEFT JOIN db_app.user u
     ON so.waiter = u.id
+LEFT JOIN (
+    SELECT
+        comanda,
+        CASE
+            WHEN SUM(CASE WHEN destination = 'cocina' THEN 1 ELSE 0 END) = 0 THEN 0
+            WHEN SUM(CASE WHEN destination = 'cocina' AND realized = 0 THEN 1 ELSE 0 END) > 0 THEN 1
+            WHEN SUM(CASE WHEN destination = 'cocina' AND realized <> 1 THEN 1 ELSE 0 END) = 0 THEN 2
+            ELSE 1
+        END AS cocina,
+        CASE
+            WHEN SUM(CASE WHEN destination = 'barra' THEN 1 ELSE 0 END) = 0 THEN 0
+            WHEN SUM(CASE WHEN destination = 'barra' AND realized = 0 THEN 1 ELSE 0 END) > 0 THEN 1
+            WHEN SUM(CASE WHEN destination = 'barra' AND realized <> 1 THEN 1 ELSE 0 END) = 0 THEN 2
+            ELSE 1
+        END AS barra
+    FROM db_app.items_destination
+    GROUP BY comanda
+) est ON est.comanda = so.id
 WHERE i.payed = 0
 GROUP BY so.id;
 
@@ -358,3 +338,41 @@ LEFT JOIN (
 ) r2 
     ON r2.product = e.id 
     AND r2.type_product = 'extra';
+
+
+
+
+
+
+CREATE OR REPLACE VIEW items_destination AS
+SELECT
+	id,
+    sale_order AS comanda,
+    name AS item,
+    destination,
+    realized,
+    'item' AS tabla
+FROM items
+WHERE destination <> 'Ambos'
+
+UNION ALL
+
+SELECT
+	id,
+    orden AS comanda,
+    name AS item,
+    destination,
+    realized,
+    'extra' AS tabla
+FROM items_extras
+
+UNION ALL
+
+SELECT
+	id,
+    id_order AS comanda,
+    name_item AS item,
+    destination,
+    realized,
+    'combo' AS tabla
+FROM combo_item_selected;

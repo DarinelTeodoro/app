@@ -372,6 +372,25 @@
 }.container-total-final span{
     font-family: var(--mono);
     font-weight: bold;
+}.container-detalles-calculos{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}.container-detalles-calculos span {
+    font-family: var(--font-general);
+    font-size: 0.8rem;
+}.container-detalles-calculos b {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+}
+
+
+
+.container-input-abono {
+    display: grid;
+    align-items: center;
+    grid-template-columns: auto 1fr;
+    gap: 10px;
 }
 
 
@@ -380,6 +399,14 @@
     gap: 10px;
 }.container-input-recibido .form-label {
     margin: 0px;
+}.container-cambio {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    font-family: var(--font-general);
+}.container-cambio .amount {
+    font-family: var(--mono);
 }
 
 .container-restante {
@@ -420,5 +447,55 @@
 }.amount-detail-main .amount {
     font-family: var(--mono);
     font-weight: bold;
+    color: var(--color-success);
+}
+
+
+.list-products-separated {
+    display: grid;
+    gap: 5px;
+}
+
+.list-group-product {
+    padding: 10px;
+    display: grid;
+    align-items: center;
+    grid-template-columns: 1fr auto 80px;
+    gap: 10px;
+
+    border: 2px solid var(--color-border);
+    border-radius: 5px;
+
+    font-family: var(--font-general);
+}.list-group-product .number {
+    font-family: var(--mono);
+}
+
+.container-buttons-number {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 5px;
+}.container-buttons-number span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}.container-buttons-number button {
+    height: 30px;
+    width: 30px;
+    padding: 6px;
+
+    background: var(--color-black);
+    color: var(--color-white);
+}
+
+.subtotal-selected {
+    padding: 10px 0px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}.subtotal-selected span {
+    font-family: var(--font-general);
+}.subtotal-selected b {
+    font-family: var(--mono);
     color: var(--color-success);
 }

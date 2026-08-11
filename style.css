@@ -224,6 +224,9 @@ ul {
 .btn-execute {
     background: var(--color-btn-execute);
     color: var(--color-white);
+}.btn-execute:disabled {
+    cursor: default;
+    opacity: 0.6;
 }
 
 a.btn-execute {

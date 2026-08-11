@@ -514,6 +514,14 @@ function select_combo(producto) {
     abrir_modal_combo(producto);
 }
 
+// ============================================================
+// FIX: los ids se repiten entre tipos distintos (ej. variant.id=9
+// y product.id=9), así que TODO lo que identifica una opción dentro
+// de un grupo de combo ahora usa type+id combinados, no solo id.
+// ============================================================
+// Reemplazá abrir_modal_combo() y el listener de 'btn-confirm-combo'
+// por estas versiones.
+
 function abrir_modal_combo(producto) {
     const grupos = combosPorProducto[producto.id];
     comboProdActual = producto;
@@ -532,9 +540,14 @@ function abrir_modal_combo(producto) {
         const esMultiple = grupo.selection_type === 'multiple';
 
         const items = grupo.products.map(item => {
+            // Clave única REAL de esta opción: combina type + id, ya que
+            // el id solo no alcanza (puede repetirse entre 'producto',
+            // 'variante' y 'extra').
+            const optionKey = `${item.type}-${item.id}`;
+
             if (esDefault) {
                 return `
-                <div class="combo-item" data-group-id="${grupo.group_id}" data-item-id="${item.id}" data-qty-default="${item.qty}">
+                <div class="combo-item" data-group-id="${grupo.group_id}" data-item-id="${item.id}" data-item-type="${item.type}" data-qty-default="${item.qty}">
                     <span class="combo-item-name">${escapeHTML(item.name)}</span>
                     <div class="combo-item-qty">
                         <button type="button" class="btn-qty" data-action="restar-combo"><i class="fi fi-br-minus-small"></i></button>
@@ -546,10 +559,10 @@ function abrir_modal_combo(producto) {
 
             if (esUnico) {
                 return `
-                <div class="combo-item" data-group-id="${grupo.group_id}" data-item-id="${item.id}" data-qty-default="${item.qty}">
+                <div class="combo-item" data-group-id="${grupo.group_id}" data-item-id="${item.id}" data-item-type="${item.type}" data-qty-default="${item.qty}">
                     <div class="combo-item-label">
-                        <input type="radio" class="btn-check" name="combo-group-${grupo.group_id}" id="combo-radio-${grupo.group_id}-${item.id}" value="${item.id}" autocomplete="off">
-                        <label class="btn btn-outline-primary" for="combo-radio-${grupo.group_id}-${item.id}">
+                        <input type="radio" class="btn-check" name="combo-group-${grupo.group_id}" id="combo-radio-${grupo.group_id}-${optionKey}" value="${optionKey}" autocomplete="off">
+                        <label class="btn btn-outline-primary" for="combo-radio-${grupo.group_id}-${optionKey}">
                             ${escapeHTML(item.name)}
                         </label>
                     </div>
@@ -563,10 +576,10 @@ function abrir_modal_combo(producto) {
 
             if (esMultiple) {
                 return `
-                <div class="combo-item" data-group-id="${grupo.group_id}" data-item-id="${item.id}" data-qty-default="${item.qty}">
+                <div class="combo-item" data-group-id="${grupo.group_id}" data-item-id="${item.id}" data-item-type="${item.type}" data-qty-default="${item.qty}">
                     <div class="combo-item-label">
-                        <input type="checkbox" class="btn-check" name="combo-group-${grupo.group_id}" id="combo-check-${grupo.group_id}-${item.id}" value="${item.id}" autocomplete="off">
-                        <label class="btn btn-outline-primary" for="combo-check-${grupo.group_id}-${item.id}">
+                        <input type="checkbox" class="btn-check" name="combo-group-${grupo.group_id}" id="combo-check-${grupo.group_id}-${optionKey}" value="${optionKey}" autocomplete="off">
+                        <label class="btn btn-outline-primary" for="combo-check-${grupo.group_id}-${optionKey}">
                             ${escapeHTML(item.name)}
                         </label>
                     </div>
@@ -622,26 +635,36 @@ function abrir_modal_combo(producto) {
     modal.show();
 }
 
+
+// FALTABA: este listener maneja los clics de sumar-combo/restar-combo.
+// Se perdió al reemplazar el código con el fix de type+id anterior.
 document.getElementById('combo-groups-list').addEventListener('click', (e) => {
     const boton = e.target.closest('button[data-action]');
     if (!boton) return;
     if (boton.dataset.action !== 'sumar-combo' && boton.dataset.action !== 'restar-combo') return;
-
+ 
     const itemEl = boton.closest('.combo-item');
     const qtyEl = itemEl.querySelector('.combo-qty-valor');
     let qty = parseInt(qtyEl.textContent);
-
+ 
     if (boton.dataset.action === 'sumar-combo') qty += 1;
     if (boton.dataset.action === 'restar-combo' && qty > 1) qty -= 1;
-
+ 
     qtyEl.textContent = qty;
 });
+ 
 
 document.getElementById('btn-confirm-combo').addEventListener('click', () => {
     const grupos = combosPorProducto[comboProdActual.id];
     const contenedor = document.getElementById('combo-groups-list');
     const itemsSeleccionados = [];
-    const faltantes = []; // <-- acumula todos los grupos con error
+    const faltantes = [];
+
+    // Helper: busca el producto de un grupo por type+id combinados
+    // (el id solo no alcanza, puede repetirse entre tipos distintos).
+    function buscarItem(grupo, itemId, itemType) {
+        return grupo.products.find(p => p.id === itemId && p.type === itemType);
+    }
 
     for (const grupo of grupos) {
         const grupoEl = contenedor.querySelector(`.combo-group[data-group-id="${grupo.group_id}"]`);
@@ -649,8 +672,9 @@ document.getElementById('btn-confirm-combo').addEventListener('click', () => {
         if (grupo.selection_type === 'default') {
             grupoEl.querySelectorAll('.combo-item').forEach(itemEl => {
                 const itemId = Number(itemEl.dataset.itemId);
+                const itemType = itemEl.dataset.itemType;
                 const qty = parseInt(itemEl.querySelector('.combo-qty-valor').textContent);
-                const itemData = grupo.products.find(p => p.id === itemId);
+                const itemData = buscarItem(grupo, itemId, itemType);
                 itemsSeleccionados.push({ ...itemData, qty, group_id: grupo.group_id, group_name: grupo.group_name });
             });
         }
@@ -658,12 +682,13 @@ document.getElementById('btn-confirm-combo').addEventListener('click', () => {
         if (grupo.selection_type === 'unico') {
             const radio = grupoEl.querySelector('input[type=radio]:checked');
             if (!radio) {
-                faltantes.push(grupo.group_name); // <-- acumula en vez de break
+                faltantes.push(grupo.group_name);
             } else {
                 const itemEl = radio.closest('.combo-item');
                 const itemId = Number(itemEl.dataset.itemId);
+                const itemType = itemEl.dataset.itemType;
                 const qty = parseInt(itemEl.querySelector('.combo-qty-valor').textContent);
-                const itemData = grupo.products.find(p => p.id === itemId);
+                const itemData = buscarItem(grupo, itemId, itemType);
                 itemsSeleccionados.push({ ...itemData, qty, group_id: grupo.group_id, group_name: grupo.group_name });
             }
         }
@@ -671,20 +696,20 @@ document.getElementById('btn-confirm-combo').addEventListener('click', () => {
         if (grupo.selection_type === 'multiple') {
             const checks = grupoEl.querySelectorAll('input[type=checkbox]:checked');
             if (checks.length === 0) {
-                faltantes.push(grupo.group_name); // <-- acumula en vez de break
+                faltantes.push(grupo.group_name);
             } else {
                 checks.forEach(chk => {
                     const itemEl = chk.closest('.combo-item');
                     const itemId = Number(itemEl.dataset.itemId);
+                    const itemType = itemEl.dataset.itemType;
                     const qty = parseInt(itemEl.querySelector('.combo-qty-valor').textContent);
-                    const itemData = grupo.products.find(p => p.id === itemId);
+                    const itemData = buscarItem(grupo, itemId, itemType);
                     itemsSeleccionados.push({ ...itemData, qty, group_id: grupo.group_id, group_name: grupo.group_name });
                 });
             }
         }
     }
 
-    // Si hay faltantes, mostrar todos juntos
     if (faltantes.length > 0) {
         const lista = faltantes.map(nombre => `<li class="p-0" style="list-style-type: none;">• ${nombre}</li>`).join('');
         show_alert('Atención', `No ha seleccionado en:<ul class="p-0">${lista}</ul>`);

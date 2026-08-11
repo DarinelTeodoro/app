@@ -124,25 +124,26 @@
     gap: 5px;
 }
 
-/* Chrome, Edge, Safari (basados en WebKit/Blink) */
-.modal-items::-webkit-scrollbar {
+/* Chrome, Edge, Safari (basados en WebKit/Blink)
+.card-middle::-webkit-scrollbar {
     margin-left: 5px;
     width: 5px;
 }
 
-.modal-items::-webkit-scrollbar-track {
+.card-middle::-webkit-scrollbar-track {
     background: var(--color-border);
     border-radius: 10px;
 }
 
-.modal-items::-webkit-scrollbar-thumb {
+.card-middle::-webkit-scrollbar-thumb {
     background: var(--color-secondary);
     border-radius: 10px;
 }
 
-.modal-items::-webkit-scrollbar-thumb:hover {
+.card-middle::-webkit-scrollbar-thumb:hover {
     background: var(--color-secondary-before);
 }
+*/
 
 .batch-block {
     margin-right: 7px;
@@ -260,4 +261,21 @@
 
     background: var(--color-success);
     color: var(--color-white);
+}
+
+
+
+@keyframes batchHighlight {
+    0% {
+        background-color: rgba(19, 161, 38, 0.3);
+    }
+
+    100% {
+        background-color: rgba(19, 161, 38, 0.15);
+    }
+}
+
+.batch-new .item-block{
+    animation: batchHighlight 1.2s ease-out forwards;
+    border-radius: 6px;
 }

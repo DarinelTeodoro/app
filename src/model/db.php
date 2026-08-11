@@ -482,6 +482,88 @@ function recipe($id, $type)
 
 
 
+function do_recipe_main($order, $destination)
+{
+    $conexion = new Conexion();
+    $query = $conexion->prepare("SELECT * FROM view_items WHERE sale_order = :order AND (destination = :destination OR destination = 'ambos') AND realized = 0");
+    $query->bindParam(':order', $order);
+    $query->bindParam(':destination', $destination);
+    $query->execute();
+
+    $results = $query->fetchAll(PDO::FETCH_ASSOC);
+
+    return !empty($results) ? $results : false;
+}
+
+
+function do_recipe_combo($item, $destination)
+{
+    $conexion = new Conexion();
+    $query = $conexion->prepare("SELECT * FROM view_combo_item_selected WHERE item = :item AND destination = :destination AND realized = 0");
+    $query->bindParam(':item', $item);
+    $query->bindParam(':destination', $destination);
+    $query->execute();
+
+    $results = $query->fetchAll(PDO::FETCH_ASSOC);
+
+    return !empty($results) ? $results : false;
+}
+
+
+function do_recipe_extra($item, $destination)
+{
+    $conexion = new Conexion();
+    $query = $conexion->prepare("SELECT * FROM items_extras WHERE id_item = :item AND destination = :destination AND realized = 0");
+    $query->bindParam(':item', $item);
+    $query->bindParam(':destination', $destination);
+    $query->execute();
+
+    $results = $query->fetchAll(PDO::FETCH_ASSOC);
+
+    return !empty($results) ? $results : false;
+}
+
+
+function check_discount($item, $type)
+{
+    $conexion = new Conexion();
+    $query = $conexion->prepare("SELECT * FROM view_items_recipe WHERE product = :item AND type_product = :tipo");
+    $query->bindParam(':item', $item);
+    $query->bindParam(':tipo', $type);
+    $query->execute();
+
+    $results = $query->fetchAll(PDO::FETCH_ASSOC);
+
+    return !empty($results) ? $results : false;
+}
+
+
+function discount($materia, $value)
+{
+    $conexion = new Conexion();
+    $update = $conexion->prepare("UPDATE materia SET total = total - :total WHERE id = :materia");
+    $update->bindParam(':materia', $materia);
+    $update->bindParam(':total', $value);
+    $update->execute();
+}
+
+
+function insert_move_inventory($tabla, $forean, $order, $main, $item, $qty, $id_materia, $value)
+{
+    $conexion = new Conexion();
+    $insert = $conexion->prepare("INSERT INTO history_inventory(tabla, forean, comanda, item_main, item, qty, materia, amount) VALUES (:tabla, :forean, :order, :item_main, :item, :qty, :materia, :amount)");
+    $insert->bindParam(':tabla', $tabla);
+    $insert->bindParam(':forean', $forean);
+    $insert->bindParam(':order', $order);
+    $insert->bindParam(':item_main', $main);
+    $insert->bindParam(':item', $item);
+    $insert->bindParam(':qty', $qty);
+    $insert->bindParam(':materia', $id_materia);
+    $insert->bindParam(':amount', $value);
+    $insert->execute();
+}
+
+
 
 /**************************************************************TABLES */
 function settings($keyword)
@@ -505,7 +587,7 @@ function tables_disabled()
     $query = $conexion->prepare("
         SELECT DISTINCT n_table 
         FROM sale_order 
-        WHERE status NOT IN ('finalizada', 'cancelada')
+        WHERE status NOT IN ('finalizado', 'cancelado')
     ");
     $query->execute();
 
@@ -516,6 +598,26 @@ function tables_disabled()
 
 
 /******************************************************* ORDERS */
+
+function data_pays_order($order, $init, $finish)
+{
+    $conexion = new Conexion();
+    $query = $conexion->prepare("SELECT * FROM transactions WHERE orden = :orden AND date >= :date_init AND date < :date_finish");
+    $query->bindParam(':orden', $order);
+    $query->bindParam(':date_init', $init);
+    $query->bindParam(':date_finish', $finish);
+    $query->execute();
+    return $query->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function data_order($order)
+{
+    $conexion = new Conexion();
+    $query = $conexion->prepare("SELECT * FROM view_order WHERE id = :id");
+    $query->bindParam(':id', $order);
+    $query->execute();
+    return $query->fetch(PDO::FETCH_ASSOC);
+}
 function pending_orders()
 {
     $conexion = new Conexion();
@@ -537,6 +639,30 @@ function order_items($order)
     return $query->fetchAll(PDO::FETCH_ASSOC);
 }
 
+function item_extras($item)
+{
+    $conexion = new Conexion();
+    $query = $conexion->prepare("SELECT *
+            FROM items_extras
+            WHERE id_item = :item");
+    $query->bindParam(':item', $item);
+    $query->execute();
+    return $query->fetchAll(PDO::FETCH_ASSOC);
+}
+
+
+function extras_ordered($item, $destino)
+{
+    $conexion = new Conexion();
+    $query = $conexion->prepare("SELECT *
+            FROM items_extras
+            WHERE id_item = :item AND destination = :destination");
+    $query->bindParam(':item', $item);
+    $query->bindParam(':destination', $destino);
+    $query->execute();
+    return $query->fetchAll(PDO::FETCH_ASSOC);
+}
+
 
 function combo_selected_items($combo_item_id)
 {
@@ -548,6 +674,31 @@ function combo_selected_items($combo_item_id)
 }
 
 
+function get_destination($type, $id)
+{
+    $conexion = new Conexion();
+
+    if ($type == 'extra') {
+        $query = $conexion->prepare("SELECT destination FROM extra WHERE id = :id");
+        $query->bindParam(':id', $id);
+    } else {
+        $query = $conexion->prepare("
+            SELECT c.destination
+            FROM product p
+            JOIN category c ON p.category = c.id
+            WHERE p.id = :id
+        ");
+        $query->bindParam(':id', $id);
+    }
+
+    $query->execute();
+    $destination = $query->fetch(PDO::FETCH_ASSOC);
+
+    return $destination ? $destination['destination'] : false;
+}
+
+
+
 
 /*************************************  Barra & Cocina */
 function comandas($destination)
@@ -556,7 +707,7 @@ function comandas($destination)
     $query = $conexion->prepare("SELECT *
             FROM view_order
             WHERE $destination = 1
-            ORDER BY modified_at DESC");
+            ORDER BY modified_at ASC");
     $query->execute();
     return $query->fetchAll(PDO::FETCH_ASSOC);
 }
@@ -567,7 +718,8 @@ function items_destination($order, $destination)
     $query = $conexion->prepare("SELECT *
             FROM view_items
             WHERE sale_order = :order
-            AND (destination = :destination OR destination = 'ambos')");
+            AND (destination = :destination OR destination = 'ambos')
+            AND realized = 0");
     $query->bindParam(':order', $order);
     $query->bindParam(':destination', $destination);
     $query->execute();
@@ -577,7 +729,7 @@ function items_destination($order, $destination)
 function view_combo_selected($combo_item_id, $destination)
 {
     $conexion = new Conexion();
-    $query = $conexion->prepare("SELECT * FROM view_combo_item_selected WHERE item = :forean AND (destination = :destination OR destination = 'ambos') ORDER BY group_item");
+    $query = $conexion->prepare("SELECT * FROM view_combo_item_selected WHERE item = :forean AND destination = :destination AND realized = 0 ORDER BY group_item");
     $query->bindParam(':forean', $combo_item_id);
     $query->bindParam(':destination', $destination);
     $query->execute();
