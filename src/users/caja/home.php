@@ -201,6 +201,14 @@ if (isset($_POST['logout-session'])) {
         return json.data;
     }
 
+    async function fetchOffers(orderId) {
+        const res = await fetch(`get-offers.php?order=${orderId}`);
+        if (!res.ok) throw new Error(`Error de conexión ${res.status}`);
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error || 'Error al consultar descuentos');
+        return json.data;
+    }
+
     const POLL_INTERVAL_MS = 5000;
 
     const ESTADO_CONFIG = {
@@ -332,8 +340,15 @@ if (isset($_POST['logout-session'])) {
         );
     }
 
-    function DiscountModal({ currentDiscount, maxAmount, onConfirm, onClose }) {
-        const [value, setValue] = useState(currentDiscount > 0 ? String(currentDiscount) : '');
+    function DiscountModal({ orderId, onApplied, onClose }) {
+        const [loading, setLoading] = useState(true);
+        const [offers, setOffers] = useState([]);
+        const [error, setError] = useState(null);
+
+        const [type, setType] = useState('porcentaje');
+        const [value, setValue] = useState('');
+        const [motivo, setMotivo] = useState('');
+        const [submitting, setSubmitting] = useState(false);
 
         useEffect(() => {
             const el = document.getElementById('static-discount');
@@ -349,36 +364,155 @@ if (isset($_POST['logout-session'])) {
             };
         }, []);
 
-        const bodyEl = document.getElementById('discount-body');
-        const monto = Math.min(Math.max(Number(value || 0), 0), maxAmount);
+        const loadOffers = useCallback(() => {
+            setLoading(true);
+            fetchOffers(orderId)
+                .then(data => { setOffers(data); setError(null); })
+                .catch(e => setError(e.message))
+                .finally(() => setLoading(false));
+        }, [orderId]);
 
-        const body = (
+        useEffect(() => { loadOffers(); }, [loadOffers]);
+
+        function handleDelete(offerId) {
+            Swal.fire({
+                title: '¿Desea eliminar el descuento?',
+                icon: 'question',
+                allowOutsideClick: false,
+                showCancelButton: true,
+                confirmButtonText: 'Eliminar',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const formData = new FormData();
+                    formData.append('request', 'delete-offer');
+                    formData.append('orden', orderId);
+                    formData.append('offer', offerId);
+
+                    show_load();
+
+                    fetch('manage-offer.php', {
+                        method: 'POST',
+                        body: formData
+                    })
+                        .then(res => res.json())
+                        .then(json => {
+                            if (json.status === 201) {
+                                show_alert(json.title, json.message);
+                                loadOffers();
+                                onApplied();
+                            } else {
+                                show_alert(json.title || 'Error', json.message || 'No se pudo eliminar el descuento');
+                            }
+                        })
+                        .catch(() => {
+                            show_alert('ERROR', 'Error al realizar operacion, Intente de nuevo');
+                        })
+                        .finally(() => {
+                            hide_load();
+                        });
+                }
+            });
+        }
+
+        function handleSubmit(e) {
+            e.preventDefault();
+            if (!value || Number(value) <= 0 || !motivo.trim()) return;
+
+            const formData = new FormData();
+            formData.append('request', 'order-offer');
+            formData.append('order-to-offer', orderId);
+            formData.append('type-offer', type);
+            formData.append('value-offer', value);
+            formData.append('motivo-offer', motivo);
+
+            setSubmitting(true);
+            show_load();
+
+            fetch('manage-offer.php', {
+                method: 'POST',
+                body: formData
+            })
+                .then(res => res.json())
+                .then(json => {
+                    if (json.status === 201) {
+                        show_alert(json.title, json.message);
+                        setValue('');
+                        setMotivo('');
+                        loadOffers();
+                        onApplied();
+                    } else {
+                        show_alert(json.title || 'Error', json.message || 'No se pudo aplicar el descuento');
+                    }
+                })
+                .catch(() => {
+                    show_alert('ERROR', 'Error al realizar operacion, Intente de nuevo');
+                })
+                .finally(() => {
+                    setSubmitting(false);
+                    hide_load();
+                });
+        }
+
+        const bodyEl = document.getElementById('discount-body');
+
+        const body = loading ? (
+            <div class="message-status">
+                <div class="container-system-message">
+                    <i class="fi fi-br-ballot"></i>
+                    <span>Cargando descuentos...</span>
+                </div>
+            </div>
+        ) : error ? (
+            <div class="message-status">
+                <div class="container-system-message">
+                    <i class="fi fi-br-not-found"></i>
+                    <span>{error}</span>
+                </div>
+            </div>
+        ) : offers.length > 0 ? (
+            <div class="d-grid gap-2">
+                {offers.map(offer => (
+                    <div key={offer.id} class="border border-2 text-general" style={{ fontSize: '0.85rem' }}>
+                        <div class="d-flex align-items-center justify-content-between p-2 gap-2">
+                            <span>
+                                {offer.type === 'porcentaje'
+                                    ? <React.Fragment><span class="text-primary fw-bold">{offer.value}%</span> (${formatPrice(offer.value_calculado)})</React.Fragment>
+                                    : `$${formatPrice(offer.value)}`}
+                            </span>
+                            <i class="text-muted">{offer.date}</i>
+                            <button class="bg-danger text-white" onClick={() => handleDelete(offer.id)}>
+                                <i class="fi fi-br-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        ) : (
             <div>
-                <div class="container-detalles-cuenta">
-                    <b>Total de la orden</b>
-                    <span>${formatPrice(maxAmount)}</span>
-                </div>
-                <div class="container-input-recibido">
-                    <label class="form-label">Monto a descontar</label>
-                    <input
-                        type="number" min="0" max={maxAmount} step="0.01"
-                        value={value}
-                        onChange={e => setValue(e.target.value)}
-                    />
-                    <small class="text-muted d-block mt-1">Máximo: ${formatPrice(maxAmount)}</small>
-                </div>
-                <div class="container-total-final">
-                    <b>Total con descuento</b>
-                    <span>${formatPrice(maxAmount - monto)}</span>
-                </div>
-                <div class="d-grid mt-2">
-                    <button class="btn-execute" onClick={() => {
-                        onConfirm(monto);
-                        bootstrap.Modal.getInstance(document.getElementById('static-discount')).hide();
-                    }}>
-                        Aplicar descuento
-                    </button>
-                </div>
+                <span>Detalles de los descuentos:</span>
+                <li>Se calcula con base al total actual de la comanda.</li>
+
+                <form onSubmit={handleSubmit}>
+                    <div class="d-grid mt-2">
+                        <label>Tipo de descuento</label>
+                        <select value={type} onChange={e => setType(e.target.value)}>
+                            <option value="porcentaje">Porcentaje</option>
+                            <option value="fijo">Monto Fijo</option>
+                        </select>
+
+                        <label class="mt-2">Valor del descuento</label>
+                        <input type="number" step="0.01" min="0" value={value} onChange={e => setValue(e.target.value)} required />
+
+                        <label class="mt-2">Motivo de descuento</label>
+                        <textarea value={motivo} onChange={e => setMotivo(e.target.value)} required></textarea>
+                    </div>
+                    <div class="d-grid mt-2">
+                        <button type="submit" class="btn-execute" disabled={submitting}>
+                            {submitting ? 'Aplicando...' : 'Aplicar Descuento'}
+                        </button>
+                    </div>
+                </form>
             </div>
         );
 
@@ -597,7 +731,7 @@ if (isset($_POST['logout-session'])) {
             const tip = calcTip(baseAmount, tipType, tipValue);
 
             const propinaSinValor = tipType !== 'none' && (tipValue === '' || tipValue === null);
-            const totalACobrar = montoReal + tip;
+            const totalACobrar = Number(montoReal) + tip;
             const received = Number(receivedAmount || 0);
             const cambio = received - totalACobrar;
 
@@ -738,7 +872,10 @@ if (isset($_POST['logout-session'])) {
                     </div>
                 </div>
             );
+
+            console.log({ baseAmount, tipType, tipValue, tip, montoReal, totalACobrar });
         }
+
 
         return (
             <React.Fragment>
@@ -754,7 +891,6 @@ if (isset($_POST['logout-session'])) {
         const [error, setError] = useState(null);
         const [paymentMethod, setPaymentMethod] = useState(null);
         const [showDiscountModal, setShowDiscountModal] = useState(false);
-        const [descuento, setDescuento] = useState(0);
 
         useEffect(() => {
             const el = document.getElementById('static-orderinfo');
@@ -808,9 +944,8 @@ if (isset($_POST['logout-session'])) {
         // Total pendiente de pago
         const totalPendiente = order.debt;
 
-        const totalOrder = Math.max(order.debt - descuento, 0);
-
-        const hayPagados = Number(order.debt ?? 0) > 0 && order.total != order.debt;
+        const hayPagados = order.paid > 0;
+        const faltaPagar = order.debt > 0;
 
         const content = loading ? (
             <div class="message-status">
@@ -936,28 +1071,28 @@ if (isset($_POST['logout-session'])) {
                 </div>
 
                 {
+                    order.offer > 0 && (
+                        <div class="container-amount-total">
+                            <b>Descuento</b>
+                            <span>-${formatPrice(order.discount)}</span>
+                        </div>
+                    )
+                }
+
+                {
                     hayPagados && (
                         <div class="container-amount-total">
-                            <b>Abonado</b>
+                            <b>Pagado</b>
                             <span>${formatPrice(order.paid)}</span>
                         </div>
                     )
                 }
 
                 {
-                    hayPagados && (
+                    faltaPagar && (
                         <div class="container-amount-total">
                             <b>Pendiente</b>
                             <span>${formatPrice(order.debt)}</span>
-                        </div>
-                    )
-                }
-
-                {
-                    descuento > 0 && (
-                        <div class="container-amount-total">
-                            <b>Descuento</b>
-                            <span>-${formatPrice(descuento)}</span>
                         </div>
                     )
                 }
@@ -1014,7 +1149,7 @@ if (isset($_POST['logout-session'])) {
                                     Pago Mixto
                                 </button>
 
-                                {order.deposito === 0 && (
+                                {order.deposito == 0 && order.offer == 0 && (
                                     <button
                                         className="btn btn-warning"
                                         onClick={() => setPaymentMethod('separadas')}
@@ -1038,7 +1173,7 @@ if (isset($_POST['logout-session'])) {
                 {paymentMethod && (
                     <PaymentModal
                         orderId={orderId}
-                        totalOrder={totalOrder}
+                        totalOrder={order.debt}
                         flatItems={flatItems}
                         initialMethod={paymentMethod}
                         onClose={() => setPaymentMethod(null)}
@@ -1046,9 +1181,8 @@ if (isset($_POST['logout-session'])) {
                 )}
                 {showDiscountModal && (
                     <DiscountModal
-                        currentDiscount={descuento}
-                        maxAmount={totalOrderBruto}
-                        onConfirm={setDescuento}
+                        orderId={orderId}
+                        onApplied={() => window.dispatchEvent(new CustomEvent('pago-registrado', { detail: { orderId } }))}
                         onClose={() => setShowDiscountModal(false)}
                     />
                 )}

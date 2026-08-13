@@ -22,7 +22,9 @@ function build_orders($orders)
             'deposito' => $order['deposit'],
             'total' => $order['total'],
             'paid' => $order['paid'],
+            'discount' => $order['discount'],
             'debt' => $order['debt'],
+            'offer' => $order['offer'],
             'notes' => $order['note'],
             'cocina' => $order['cocina'],
             'barra' => $order['barra']

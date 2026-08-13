@@ -9,6 +9,7 @@ $conexion->beginTransaction();
 try {
     $order = $_POST['order_id'];
     $destination = $_POST['destination'];
+    $fecha = date('Y-m-d H:i:s');
 
     $update = $conexion->prepare('UPDATE items SET realized = 1 WHERE sale_order = :order AND destination = :destination');
     $update->bindParam(':order', $order);
@@ -24,6 +25,11 @@ try {
     $update_combo->bindParam(':order', $order);
     $update_combo->bindParam(':destination', $destination);
     $update_combo->execute();
+
+    $update_batch = $conexion->prepare('UPDATE batch SET finished = :fecha WHERE sale_order = :order AND finished IS NULL');
+    $update_batch->bindParam(':order', $order);
+    $update_batch->bindParam(':fecha', $fecha);
+    $update_batch->execute();
 
 
     # Ajustar Inventario

@@ -595,6 +595,16 @@ function tables_disabled()
 }
 
 
+/******************************************************* DESCUENTOS */
+function data_offers($order)
+{
+    $conexion = new Conexion();
+    $query = $conexion->prepare("SELECT * FROM offer WHERE orden = :orden");
+    $query->bindParam(':orden', $order);
+    $query->execute();
+
+    return $query->fetchAll(PDO::FETCH_ASSOC);
+}
 
 
 /******************************************************* ORDERS */
@@ -606,6 +616,16 @@ function data_pays_order($order, $init, $finish)
     $query->bindParam(':orden', $order);
     $query->bindParam(':date_init', $init);
     $query->bindParam(':date_finish', $finish);
+    $query->execute();
+    return $query->fetchAll(PDO::FETCH_ASSOC);
+}
+
+
+function data_pays($order)
+{
+    $conexion = new Conexion();
+    $query = $conexion->prepare("SELECT * FROM transactions WHERE orden = :orden");
+    $query->bindParam(':orden', $order);
     $query->execute();
     return $query->fetchAll(PDO::FETCH_ASSOC);
 }

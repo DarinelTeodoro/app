@@ -197,6 +197,18 @@ $sql_canceled->bindParam(':date_init', $date_init);
 $sql_canceled->bindParam(':date_finish', $date_finish);
 $sql_canceled->execute();
 $canceled = $sql_canceled->fetchAll(PDO::FETCH_ASSOC);
+
+$products_sale = $conexion->prepare("SELECT type, name, SUM(total) AS total, SUM(qty) AS qty FROM view_items WHERE finished IS NOT NULL AND finished >= :date_init AND finished < :date_finish GROUP BY product_id, variant_id ORDER BY qty DESC");
+$products_sale->bindParam(':date_init', $date_init);
+$products_sale->bindParam(':date_finish', $date_finish);
+$products_sale->execute();
+$rows_ps = $products_sale->fetchAll(PDO::FETCH_ASSOC);
+
+$extras_sale = $conexion->prepare("SELECT name, SUM(qty_extra) AS qty, SUM(total_extra) AS total FROM view_extras WHERE realized = 1 AND finished >= :date_init AND finished < :date_finish GROUP BY id_extra ORDER BY qty DESC");
+$extras_sale->bindParam(':date_init', $date_init);
+$extras_sale->bindParam(':date_finish', $date_finish);
+$extras_sale->execute();
+$rows_es = $extras_sale->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <div class="border border-3 d-flex align-items-center justify-content-between rounded mb-2 p-2">
@@ -263,6 +275,9 @@ $canceled = $sql_canceled->fetchAll(PDO::FETCH_ASSOC);
                 <table class="table" style="font-size: 0.85rem;">
                     <thead>
                         <tr>
+                            <td class="bg-secondary text-center text-light" colspan="7"><b>Meseros y Propinas</b></td>
+                        </tr>
+                        <tr>
                             <th>Mesero</th>
                             <th class="text-center">Comandas</th>
                             <th class="text-center">Ingresos</th>
@@ -301,6 +316,9 @@ $canceled = $sql_canceled->fetchAll(PDO::FETCH_ASSOC);
             <div>
                 <table class="table" style="font-size: 0.85rem;">
                     <thead>
+                        <tr>
+                            <td class="bg-secondary text-center text-light" colspan="7"><b>Metodos de Pago</b></td>
+                        </tr>
                         <tr>
                             <th>Metodo</th>
                             <th class="text-center">Pagos</th>
@@ -366,11 +384,14 @@ $canceled = $sql_canceled->fetchAll(PDO::FETCH_ASSOC);
                 <table class="table" style="font-size: 0.85rem;">
                     <thead>
                         <tr>
+                            <td class="bg-secondary text-center text-light" colspan="7"><b>Resumen de Pagos</b></td>
+                        </tr>
+                        <tr>
                             <th class="text-center">Folio</th>
                             <th>Cliente</th>
                             <th>Mesero</th>
                             <th class="text-center">Total</th>
-                            <th class="text-center">Pagos</th>
+                            <th class="text-center">Pago + Propina = Total</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -388,7 +409,7 @@ $canceled = $sql_canceled->fetchAll(PDO::FETCH_ASSOC);
                                     </td>
                                     <td class="align-middle"><?= $o['waiter_name'] ?></td>
                                     <td class="align-middle text-center">$<?= number_format($data['total'], 2) ?></td>
-                                    <td class="align-middle d-flex flex-column gap-1">
+                                    <td class="align-middle">
                                         <?php
                                         if ($data_pays) {
                                             foreach ($data_pays as $pay) {
@@ -434,6 +455,9 @@ $canceled = $sql_canceled->fetchAll(PDO::FETCH_ASSOC);
                 <table class="table" style="font-size: 0.85rem;">
                     <thead>
                         <tr>
+                            <td class="bg-secondary text-center text-light" colspan="7"><b>Ordenes Canceladas</b></td>
+                        </tr>
+                        <tr>
                             <th class="text-center">Folio</th>
                             <th>Cliente</th>
                             <th>Mesero</th>
@@ -453,7 +477,7 @@ $canceled = $sql_canceled->fetchAll(PDO::FETCH_ASSOC);
                                 <tr>
                                     <td class="text-center align-middle"><?= $c['orden'] ?></td>
                                     <td class="align-middle">
-                                        <?= $data['delivery'] == 'mesa' ? '<b class="text-secondary">Mesa ' . $data['n_table'] . '</b><div>' . $data['client'] . '</div>' : $data['client'] ?>
+                                        <?= $data['delivery'] == 'mesa' ? '<b class="text-secondary me-2">Mesa ' . $data['n_table'] . '</b><span>' . $data['client'] . '</span>' : $data['client'] ?>
                                     </td>
                                     <td class="align-middle"><?= $o['waiter_name'] ?></td>
                                     <td class="align-middle text-center">$<?= number_format($data['total'], 2) ?></td>
@@ -467,6 +491,88 @@ $canceled = $sql_canceled->fetchAll(PDO::FETCH_ASSOC);
                             ?>
                             <tr>
                                 <td class="text-center fw-bold" colspan="7">Sin comandas canceladas</td>
+                            </tr>
+                            <?php
+                        }
+                        ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12 col-md-6 pt-2 pb-2">
+            <div>
+                <table class="table" style="font-size: 0.85rem;">
+                    <thead>
+                        <tr>
+                            <td class="bg-secondary text-center text-light" colspan="7"><b>Productos Vendidos</b></td>
+                        </tr>
+                        <tr>
+                            <th>Producto</th>
+                            <th class="text-center">Unidad</th>
+                            <th class="text-center">Ingresos</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        if ($rows_ps) {
+                            foreach ($rows_ps as $ps) {
+                                ?>
+                                <tr>
+                                    <td class="align-middle "><?= $ps['type'] == 'especial' ? '<i class="fi fi-br-crown text-danger me-1"></i><b>Especial</b>' : $ps['name'] ?></td>
+                                    <td class="align-middle text-center"><?= $ps['qty'] ?></td>
+                                    <td class="align-middle text-center">$<?= number_format($ps['total'], 2) ?></td>
+                                </tr>
+                                <?php
+                            }
+                        } else {
+                            ?>
+                            <tr>
+                                <td class="text-center fw-bold" colspan="3">Sin Regsitros</td>
+                            </tr>
+                            <?php
+                        }
+                        ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-6 pt-2 pb-2">
+            <div>
+                <table class="table" style="font-size: 0.85rem;">
+                    <thead>
+                        <tr>
+                            <td class="bg-secondary text-center text-light" colspan="7"><b>Extras Vendidos</b></td>
+                        </tr>
+                        <tr>
+                            <th>Extra</th>
+                            <th class="text-center">Unidad</th>
+                            <th class="text-center">Ingresos</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        if ($rows_es) {
+                            foreach ($rows_es as $es) {
+                                ?>
+                                <tr>
+                                    <td class="align-middle "><?= $es['name'] ?></td>
+                                    <td class="align-middle text-center"><?= $es['qty'] ?></td>
+                                    <td class="align-middle text-center">$<?= number_format($es['total'], 2) ?></td>
+                                </tr>
+                                <?php
+                            }
+                        } else {
+                            ?>
+                            <tr>
+                                <td class="text-center fw-bold" colspan="3">Sin Regsitros</td>
                             </tr>
                             <?php
                         }

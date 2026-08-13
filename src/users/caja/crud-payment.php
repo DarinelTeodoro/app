@@ -44,7 +44,7 @@ function insert_payment($conexion, $orden, $method, $base, $tip_one, $received_o
     $query->execute();
     $data_pays = $query->fetch(PDO::FETCH_ASSOC);
 
-    if ($data_pays['paid'] >= $data_pays['total']) {
+    if ($data_pays['debt'] <= 0) {
         $update = $conexion->prepare("UPDATE sale_order SET status = 'finalizado', finished_at = :finished WHERE id = :orden");
         $update->bindParam(':orden', $orden);
         $update->bindParam(':finished', $fecha);

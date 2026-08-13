@@ -780,6 +780,11 @@ table.dataTable>tbody>tr {
     background-color: var(--color-secondary);
 }
 
+.dt-layout-cell.dt-layout-full {
+    width: 100%;
+    overflow-x: auto;
+}
+
 /*table.dataTable,
 table.dataTable > tbody {
     display: block;

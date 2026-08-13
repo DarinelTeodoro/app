@@ -1,6 +1,6 @@
 <?php
-include('../model/db.php');
 header('Content-Type: application/json');
+include('../model/db.php');
 
 $materia = $_POST['materia'];
 $detail = materia($materia);
