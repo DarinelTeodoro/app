@@ -66,7 +66,7 @@ if (isset($_POST['logout-session'])) {
             <i class="fi fi-br-cross icon-close" data-bs-dismiss="offcanvas" aria-label="Close"></i>
         </div>
         <form method="post" action="" class="offcanvas-body body-options-menu">
-            <div class="mt-1"><a href="mesero-new-comanda.php" class="btn-option-menu"><i
+            <div class="mt-1"><a href="checkout.php" class="btn-option-menu"><i
                         class="fi fi-br-cash-register"></i><span>Corte de Caja</span></a></div>
             <div class="mt-1"><button type="submit" name="logout-session" class="btn-option-menu"><i
                         class="fi fi-br-power"></i><span>Cerrar Sesión</span></button></div>
@@ -263,11 +263,12 @@ if (isset($_POST['logout-session'])) {
         const estadoLower = (order.estado || '').toLowerCase();
         const mostrarContador = estadoLower !== 'finalizado' && estadoLower !== 'cancelado';
         const minutosEspera = Math.floor((Date.now() - order.creada_en) / 60000);
+        const bordeDefault = estadoLower === 'finalizado' || estadoLower === 'cancelado';
         const esUrgente = minutosEspera >= 8 && estadoLower === 'pendiente';
 
         return (
             <div class="card-order" onClick={() => onSelect(order)}
-                style={{ borderColor: esUrgente ? 'var(--color-error)' : 'var(--color-success)' }}>
+                style={{ borderColor: bordeDefault ? '#000000' : (esUrgente ? 'var(--color-error)' : 'var(--color-success)') }}>
                 <div class="card-top">
                     <div class="order-id">Orden #{order.id}</div>
                     <div>
@@ -592,8 +593,8 @@ if (isset($_POST['logout-session'])) {
                 const json = await res.json();
                 if (json.status === 201) {
                     const mensaje = json.debt > 0
-                        ? `Recibido: $${formatPrice(json.received)} — Falta por pagar: $${formatPrice(json.debt)}`
-                        : `Recibido: $${formatPrice(json.received)} — Cuenta saldada`;
+                        ? `Falta por pagar: $${formatPrice(json.debt)}`
+                        : `Cuenta saldada`;
                     show_alert('Pago registrado', mensaje);
                     window.dispatchEvent(new CustomEvent('pago-registrado', { detail: { orderId } }));
                     bootstrap.Modal.getInstance(document.getElementById('static-payment')).hide();
@@ -970,6 +971,7 @@ if (isset($_POST['logout-session'])) {
             </div>
         ) : (
             <div class="modal-items">
+                <div className="p-2 border border-2 rounded d-flex align-items-center text-center"><i class="fi fi-br-holding-hand-dinner fs-4 me-1"></i> {order.mesero}</div>
                 {batches.map(batch => (
                     <div key={batch.batch_id} class="batch-block">
                         <div class="batch-header">
@@ -1110,7 +1112,7 @@ if (isset($_POST['logout-session'])) {
                 ) : null}
 
                 <div className="container-pay-options">
-                    <button className="btn btn-dark">Recibo</button>
+                    <button className="btn btn-dark" onClick={generarRecibo}>Recibo</button>
                     {order.estado === 'pendiente' ? (
                         order.barra !== 1 && order.cocina !== 1 ? (
                             <>
@@ -1165,6 +1167,141 @@ if (isset($_POST['logout-session'])) {
                 </div>
             </div>
         );
+
+
+        function generarRecibo() {
+            const fecha = new Date().toLocaleString('es-MX', {
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            });
+
+            let filas = '';
+            batches.forEach(batch => {
+                batch.items.forEach(block => {
+                    const { unitTotal, lineTotal } = computeBlockTotal(block);
+
+                    filas += `
+                <div class="linea-item">
+                    <div class="linea-principal">
+                        <span>${block.qty} x ${block.name}</span>
+                        <span>$${formatPrice(lineTotal)}</span>
+                    </div>
+                    <div class="linea-precio-unit">($${formatPrice(unitTotal)} c/u)</div>
+            `;
+
+                    if (block.type === 'combo' && block.groups) {
+                        block.groups.forEach(g => {
+                            g.items.forEach(it => {
+                                filas += `<div class="linea-detalle">&nbsp;&nbsp;- ${it.qty} x ${it.name}${it.is_extra ? ' (Extra)' : ''}</div>`;
+                            });
+                        });
+                    }
+
+                    if (block.extras && block.extras.length > 0) {
+                        block.extras.forEach(ex => {
+                            filas += `<div class="linea-detalle">&nbsp;&nbsp;+ ${ex.qty} x ${ex.name} ($${formatPrice(ex.price)})</div>`;
+                        });
+                    }
+
+                    if (block.note) {
+                        filas += `<div class="linea-nota">"${block.note}"</div>`;
+                    }
+
+                    filas += `</div>`;
+                });
+            });
+
+            const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Recibo #${orderId}</title>
+            <style>
+                * { box-sizing: border-box; }
+                body {
+                    font-family: 'Courier New', monospace;
+                    width: 280px;
+                    margin: 0 auto;
+                    padding: 10px;
+                    font-size: 12px;
+                    color: #000;
+                }
+                .centrado { text-align: center; }
+                .separador { border-top: 1px dashed #000; margin: 8px 0; }
+                .fila-total {
+                    display: flex;
+                    justify-content: space-between;
+                    margin-top: 2px;
+                }
+                .linea-item { margin-bottom: 6px; }
+                .linea-principal {
+                    display: flex;
+                    justify-content: space-between;
+                    font-weight: bold;
+                }
+                .linea-precio-unit { font-size: 10px; color: #333; }
+                .linea-detalle { font-size: 11px; margin-left: 4px; }
+                .linea-nota { font-size: 10px; font-style: italic; margin-left: 4px; }
+                h2 { margin: 4px 0; }
+                p { margin: 2px 0; }
+                @media print {
+                    body { width: 100%; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="centrado">
+                <h2>Comanda #${orderId}</h2>
+                <p>${order.delivery === 'mesa' ? 'Mesa ' + order.mesa : 'Domicilio'}</p>
+                <p>${order.client || ''}</p>
+                <p>Atendió: ${order.mesero || ''}</p>
+                <p>${fecha}</p>
+            </div>
+
+            <div class="separador"></div>
+
+            ${filas}
+
+            <div class="separador"></div>
+
+            <div class="fila-total">
+                <span>Total</span>
+                <span>$${formatPrice(order.total)}</span>
+            </div>
+            ${order.offer > 0 ? `
+                <div class="fila-total">
+                    <span>Descuento</span>
+                    <span>-$${formatPrice(order.discount)}</span>
+                </div>
+            ` : ''}
+            ${order.paid > 0 ? `
+                <div class="fila-total">
+                    <span>Pagado</span>
+                    <span>$${formatPrice(order.paid)}</span>
+                </div>
+            ` : ''}
+            ${order.debt > 0 ? `
+                <div class="fila-total">
+                    <span>Pendiente</span>
+                    <span>$${formatPrice(order.debt)}</span>
+                </div>
+            ` : ''}
+
+            <div class="separador"></div>
+            <p class="centrado">¡Gracias por su preferencia!</p>
+        </body>
+        </html>
+    `;
+
+            const ventana = window.open('', '_blank', 'width=320,height=600');
+            ventana.document.write(html);
+            ventana.document.close();
+            ventana.focus();
+            ventana.onload = () => {
+                ventana.print();
+            };
+        }
 
         return (
             <React.Fragment>

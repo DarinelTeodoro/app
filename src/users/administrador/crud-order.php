@@ -10,6 +10,7 @@ if ($_POST['request'] == 'order-cancel') {
     try {
         $order = $_POST['order-to-cancel'];
         $motivo = $_POST['motivo-cancel'];
+        $fecha = date('Y-m-d H:i:s');
 
         if (empty($motivo)) {
             $response['status'] = 400;
@@ -19,7 +20,8 @@ if ($_POST['request'] == 'order-cancel') {
             exit;
         }
 
-        $update = $conexion->prepare('UPDATE sale_order SET status = "cancelado", note = :motivo WHERE id = :order');
+        $update = $conexion->prepare('UPDATE sale_order SET status = "cancelado", finished_at = :fecha, note = :motivo WHERE id = :order');
+        $update->bindParam(':fecha', $fecha);
         $update->bindParam(':motivo', $motivo);
         $update->bindParam(':order', $order);
         $update->execute();

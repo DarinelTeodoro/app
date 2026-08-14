@@ -127,10 +127,18 @@ if ($data_items) {
                                 <span>Total (x<?= $item['qty'] ?>): <b>$<?= number_format($item_final_total, 2) ?></b></span>
                             </div>
                             <div class="d-flex align-items-center justify-content-between px-1" style="font-size: 0.85rem;">
-                                <button
-                                    class="<?= $item['realized'] == 1 || $item['finished'] !== null ? 'bg-success text-light' : 'bg-warning' ?>"
-                                    style="padding: 6px;" onclick="eliminar_item(<?= $order . ',' . $item['id'] ?>)"><i
-                                        class="fi fi-br-trash"></i></button>
+                                <div>
+                                    <?php
+                                    if ($data_order['status'] == 'pendiente') {
+                                        ?>
+                                        <button
+                                            class="<?= $item['realized'] == 1 || $item['finished'] !== null ? 'bg-success text-light' : 'bg-warning' ?>"
+                                            style="padding: 6px;" onclick="eliminar_item(<?= $order . ',' . $item['id'] ?>)"><i
+                                                class="fi fi-br-trash"></i></button>
+                                        <?php
+                                    }
+                                    ?>
+                                </div>
                                 <span><?= $item['payed'] > 0 ? '<b class="bg-warning p-1 ps-2 pe-2 rounded" style="font-size: 0.70rem;">Pagado: ' . $item['payed'] . '</b>' : '' ?>
                                     <?= $item['payed'] > 0 && $item['payed'] < $item['qty'] ? '<b class="bg-secondary text-white p-1 ps-2 pe-2 rounded" style="font-size: 0.70rem;">Falta: $' . number_format($item_unit_total * (($item['qty'] - $item['payed'])), 2) . '</b>' : '' ?></span>
                             </div>

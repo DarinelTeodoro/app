@@ -595,17 +595,6 @@ function tables_disabled()
 }
 
 
-/******************************************************* DESCUENTOS */
-function data_offers($order)
-{
-    $conexion = new Conexion();
-    $query = $conexion->prepare("SELECT * FROM offer WHERE orden = :orden");
-    $query->bindParam(':orden', $order);
-    $query->execute();
-
-    return $query->fetchAll(PDO::FETCH_ASSOC);
-}
-
 
 /******************************************************* ORDERS */
 
@@ -638,12 +627,61 @@ function data_order($order)
     $query->execute();
     return $query->fetch(PDO::FETCH_ASSOC);
 }
+
+function pending_orders_waiters($waiter)
+{
+    $hora = date('H:i:s');
+    $fecha = date('Y-m-d');
+
+
+    if ($hora < '06:00:00') {
+        $date_init = date('Y-m-d 06:00:00', strtotime($fecha . ' -1 day'));
+        $date_finish = date('Y-m-d 06:00:00', strtotime($fecha));
+    } else {
+        $date_init = date('Y-m-d 06:00:00', strtotime($fecha));
+        $date_finish = date('Y-m-d 06:00:00', strtotime($fecha . ' +1 day'));
+    }
+
+    $conexion = new Conexion();
+    $query = $conexion->prepare("SELECT * FROM view_order
+    WHERE (
+        status = 'pendiente'
+        OR (
+            finished_at >= :date_init
+            AND finished_at < :date_finish
+        )
+      )
+    AND waiter = :waiter
+    ORDER BY modified_at DESC");
+    $query->bindParam(':date_init', $date_init);
+    $query->bindParam(':date_finish', $date_finish);
+    $query->bindParam(':waiter', $waiter);
+    $query->execute();
+    return $query->fetchAll(PDO::FETCH_ASSOC);
+}
+
 function pending_orders()
 {
+    $hora = date('H:i:s');
+    $fecha = date('Y-m-d');
+
+
+    if ($hora < '06:00:00') {
+        $date_init = date('Y-m-d 06:00:00', strtotime($fecha . ' -1 day'));
+        $date_finish = date('Y-m-d 06:00:00', strtotime($fecha));
+    } else {
+        $date_init = date('Y-m-d 06:00:00', strtotime($fecha));
+        $date_finish = date('Y-m-d 06:00:00', strtotime($fecha . ' +1 day'));
+    }
+
     $conexion = new Conexion();
     $query = $conexion->prepare("SELECT *
             FROM view_order
+            WHERE status = 'pendiente'
+            OR (finished_at >= :date_init AND finished_at < :date_finish)
             ORDER BY modified_at DESC");
+    $query->bindParam(':date_init', $date_init);
+    $query->bindParam(':date_finish', $date_finish);
     $query->execute();
     return $query->fetchAll(PDO::FETCH_ASSOC);
 }
@@ -754,5 +792,74 @@ function view_combo_selected($combo_item_id, $destination)
     $query->bindParam(':destination', $destination);
     $query->execute();
     return $query->fetchAll(PDO::FETCH_ASSOC);
+}
+
+
+/******************************************************* DESCUENTOS */
+function data_offers($order)
+{
+    $conexion = new Conexion();
+    $query = $conexion->prepare("SELECT * FROM offer WHERE orden = :orden");
+    $query->bindParam(':orden', $order);
+    $query->execute();
+
+    return $query->fetchAll(PDO::FETCH_ASSOC);
+}
+
+
+/******************************************************* DESCUENTOS */
+function check_init()
+{
+    $hora = date('H:i:s');
+    $fecha = date('Y-m-d');
+
+    $fecha_completa = date('Y-m-d H:i:s');
+
+    if ($hora < '06:00:00') {
+        $date_init = date('Y-m-d 06:00:00', strtotime($fecha . ' -1 day'));
+        $date_finish = date('Y-m-d 06:00:00', strtotime($fecha));
+    } else {
+        $date_init = date('Y-m-d 06:00:00', strtotime($fecha));
+        $date_finish = date('Y-m-d 06:00:00', strtotime($fecha . ' +1 day'));
+    }
+
+    $conexion = new Conexion();
+    $query = $conexion->prepare("SELECT * FROM init_daily WHERE dt >= :date_init AND dt < :date_finish AND used = 0");
+    $query->bindParam(':date_init', $date_init);
+    $query->bindParam(':date_finish', $date_finish);
+    $query->execute();
+    $result = $query->fetchAll(PDO::FETCH_ASSOC);
+
+    if (!$result) {
+        $insert = $conexion->prepare("INSERT INTO init_daily(dt, inicial) VALUES (:dt, 0)");
+        $insert->bindParam(':dt', $fecha_completa);
+        $insert->execute();
+    }
+
+
+    return $conexion->lastInsertId();
+}
+
+function get_init()
+{
+    $hora = date('H:i:s');
+    $fecha = date('Y-m-d');
+
+
+    if ($hora < '06:00:00') {
+        $date_init = date('Y-m-d 06:00:00', strtotime($fecha . ' -1 day'));
+        $date_finish = date('Y-m-d 06:00:00', strtotime($fecha));
+    } else {
+        $date_init = date('Y-m-d 06:00:00', strtotime($fecha));
+        $date_finish = date('Y-m-d 06:00:00', strtotime($fecha . ' +1 day'));
+    }
+
+    $conexion = new Conexion();
+    $query = $conexion->prepare("SELECT * FROM init_daily WHERE dt >= :date_init AND dt < :date_finish AND used = 0");
+    $query->bindParam(':date_init', $date_init);
+    $query->bindParam(':date_finish', $date_finish);
+    $query->execute();
+
+    return $query->fetch(PDO::FETCH_ASSOC);
 }
 ?>

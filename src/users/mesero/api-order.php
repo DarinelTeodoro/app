@@ -1,4 +1,5 @@
 <?php
+session_start();
 header('Content-Type: application/json; charset=utf-8');
 date_default_timezone_set('America/Mexico_City');
 include('../../model/db.php');
@@ -30,7 +31,7 @@ function build_orders($orders)
 }
 
 try {
-    $pending = pending_orders();
+    $pending = pending_orders_waiters($_SESSION['data-useractive']);
     $data = build_orders($pending);
 
     echo json_encode([

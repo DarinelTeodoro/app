@@ -27,7 +27,8 @@ function build_orders($orders)
             'offer' => $order['offer'],
             'notes' => $order['note'],
             'cocina' => $order['cocina'],
-            'barra' => $order['barra']
+            'barra' => $order['barra'],
+            'mesero' => $order['name']
         ];
     }
     return $resultado;

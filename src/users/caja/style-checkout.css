@@ -1,0 +1,33 @@
+.system-navbar .btn-order,
+.system-navbar .btn-back {
+    height: 45px;
+    width: 45px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    font-size: 1.3rem;
+    text-decoration: none;
+
+    border-radius: 5px;
+
+    background: var(--color-white);
+    color: var(--color-black);
+
+    transition: 0.2s;
+}
+
+.system-navbar .btn-back i {
+    font-size: 1.5rem !important;
+}
+
+.system-navbar .btn-order:hover,
+.system-navbar .btn-back:hover {
+    background: var(--color-secondary-before);
+    color: var(--color-white);
+}
+
+.system-navbar .btn-back i {
+    font-size: 1.3rem;
+}
