@@ -1181,125 +1181,140 @@ if (isset($_POST['logout-session'])) {
                     const { unitTotal, lineTotal } = computeBlockTotal(block);
 
                     filas += `
-                <div class="linea-item">
-                    <div class="linea-principal">
-                        <span>${block.qty} x ${block.name}</span>
-                        <span>$${formatPrice(lineTotal)}</span>
-                    </div>
-                    <div class="linea-precio-unit">($${formatPrice(unitTotal)} c/u)</div>
-            `;
-
-                    if (block.type === 'combo' && block.groups) {
-                        block.groups.forEach(g => {
-                            g.items.forEach(it => {
-                                filas += `<div class="linea-detalle">&nbsp;&nbsp;- ${it.qty} x ${it.name}${it.is_extra ? ' (Extra)' : ''}</div>`;
-                            });
-                        });
-                    }
+                        <div class="linea-item">
+                            <div class="linea-principal">
+                                <span>${block.qty} x ${block.name}</span>
+                                <span>$${formatPrice(lineTotal)}</span>
+                            </div>
+                    `;
 
                     if (block.extras && block.extras.length > 0) {
                         block.extras.forEach(ex => {
-                            filas += `<div class="linea-detalle">&nbsp;&nbsp;+ ${ex.qty} x ${ex.name} ($${formatPrice(ex.price)})</div>`;
+                            filas += `<div class="linea-detalle">&nbsp;&nbsp;+ ${ex.qty} x ${ex.name}</div>`;
                         });
                     }
 
-                    if (block.note) {
-                        filas += `<div class="linea-nota">"${block.note}"</div>`;
-                    }
-
-                    filas += `</div>`;
+                    filas += `<div class="linea-precio-unit">($${formatPrice(unitTotal)} c/u)</div></div>`;
                 });
             });
 
             const html = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <title>Recibo #${orderId}</title>
-            <style>
-                * { box-sizing: border-box; }
-                body {
-                    font-family: 'Courier New', monospace;
-                    width: 280px;
-                    margin: 0 auto;
-                    padding: 10px;
-                    font-size: 12px;
-                    color: #000;
-                }
-                .centrado { text-align: center; }
-                .separador { border-top: 1px dashed #000; margin: 8px 0; }
-                .fila-total {
-                    display: flex;
-                    justify-content: space-between;
-                    margin-top: 2px;
-                }
-                .linea-item { margin-bottom: 6px; }
-                .linea-principal {
-                    display: flex;
-                    justify-content: space-between;
-                    font-weight: bold;
-                }
-                .linea-precio-unit { font-size: 10px; color: #333; }
-                .linea-detalle { font-size: 11px; margin-left: 4px; }
-                .linea-nota { font-size: 10px; font-style: italic; margin-left: 4px; }
-                h2 { margin: 4px 0; }
-                p { margin: 2px 0; }
-                @media print {
-                    body { width: 100%; }
-                }
-            </style>
-        </head>
-        <body>
-            <div class="centrado">
-                <h2>Comanda #${orderId}</h2>
-                <p>${order.delivery === 'mesa' ? 'Mesa ' + order.mesa : 'Domicilio'}</p>
-                <p>${order.client || ''}</p>
-                <p>Atendió: ${order.mesero || ''}</p>
-                <p>${fecha}</p>
-            </div>
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <title>Recibo #${orderId}</title>
+                    <style>
+                        @page {
+                            size: 80mm auto;
+                            margin: 0;
+                        }
+                        * { box-sizing: border-box; }
+                        body {
+                            font-family: 'Courier New', monospace;
+                            width: 100%;
+                            margin: 0 auto;
+                            padding: 15px 30px;
+                            font-size: 1.4rem;
+                            color: #000;
+                        }
+                        .centrado { text-align: center; font-weight: bold; font-size: 1.4rem;}
+                        .separador { border-top: 1px dashed #000; margin: 8px 0; }
+                        .fila-total {
+                            display: flex;
+                            justify-content: space-between;
+                            margin-top: 2px;
+                        }
+                        .linea-item { margin-bottom: 15px; }
+                        .linea-principal {
+                            display: flex;
+                            justify-content: space-between;
+                            font-weight: bold;
+                        }
+                        .linea-precio-unit { font-size: 1.4rem; color: #000000; }
+                        .linea-detalle { font-size: 1.4rem; margin-left: 4px; }
+                        h2 { margin: 4px 0; }
+                        p { margin: 6px 0; }
+                        .img-logo-recibo { width: 240px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="centrado">
+                        <img src="../../../files/fulllogo-nbg.png" class="img-logo-recibo">
+                        <div>C. Francisco I. Madero 514</div>
+                        <div>Zona Centro, 27980</div>
+                        <div>Parras de la Fuente, Coah.</div>
+                        <div>Tel: 842 148 5513</div>
+                    </div>
 
-            <div class="separador"></div>
+                    <div class="centrado" style="margin-top: 10px;">
+                        <h2>Comanda #${orderId}</h2>
+                        <p>${order.delivery === 'mesa' ? 'Mesa ' + order.mesa : ''}</p>
+                        <p>${order.client || ''}</p>
+                    </div>
 
-            ${filas}
+                    <div class="fila-total">
+                        <p>Mesero: ${order.mesero || ''}</p>
+                        <p>${fecha}</p>
+                    </div>
 
-            <div class="separador"></div>
+                    <div class="separador"></div>
 
-            <div class="fila-total">
-                <span>Total</span>
-                <span>$${formatPrice(order.total)}</span>
-            </div>
-            ${order.offer > 0 ? `
-                <div class="fila-total">
-                    <span>Descuento</span>
-                    <span>-$${formatPrice(order.discount)}</span>
-                </div>
-            ` : ''}
-            ${order.paid > 0 ? `
-                <div class="fila-total">
-                    <span>Pagado</span>
-                    <span>$${formatPrice(order.paid)}</span>
-                </div>
-            ` : ''}
-            ${order.debt > 0 ? `
-                <div class="fila-total">
-                    <span>Pendiente</span>
-                    <span>$${formatPrice(order.debt)}</span>
-                </div>
-            ` : ''}
+                    ${filas}
 
-            <div class="separador"></div>
-            <p class="centrado">¡Gracias por su preferencia!</p>
-        </body>
-        </html>
-    `;
+                    <div class="separador"></div>
 
-            const ventana = window.open('', '_blank', 'width=320,height=600');
-            ventana.document.write(html);
-            ventana.document.close();
-            ventana.focus();
-            ventana.onload = () => {
-                ventana.print();
+                    <div class="fila-total">
+                        <span>Total</span>
+                        <span>$${formatPrice(order.total)}</span>
+                    </div>
+                    ${order.offer > 0 ? `
+                        <div class="fila-total">
+                            <span>Descuento</span>
+                            <span>-$${formatPrice(order.discount)}</span>
+                        </div>
+                    ` : ''}
+                    ${order.paid > 0 ? `
+                        <div class="fila-total">
+                            <span>Pagado</span>
+                            <span>$${formatPrice(order.paid)}</span>
+                        </div>
+                    ` : ''}
+                    ${order.debt > 0 ? `
+                        <div class="fila-total">
+                            <span>Pendiente</span>
+                            <span>$${formatPrice(order.debt)}</span>
+                        </div>
+                    ` : ''}
+
+                    <div class="separador"></div>
+                    <p class="centrado">¡Gracias por su preferencia!</p>
+                </body>
+                </html>
+            `;
+
+            // Reutiliza un iframe oculto en vez de abrir una ventana nueva
+            let iframe = document.getElementById('recibo-iframe');
+            if (!iframe) {
+                iframe = document.createElement('iframe');
+                iframe.id = 'recibo-iframe';
+                iframe.style.position = 'fixed';
+                iframe.style.right = '0';
+                iframe.style.bottom = '0';
+                iframe.style.width = '0';
+                iframe.style.height = '0';
+                iframe.style.border = 'none';
+                document.body.appendChild(iframe);
+            }
+
+            const doc = iframe.contentWindow.document;
+            doc.open();
+            doc.write(html);
+            doc.close();
+
+            iframe.onload = () => {
+                iframe.contentWindow.focus();
+                iframe.contentWindow.print();
             };
         }
 

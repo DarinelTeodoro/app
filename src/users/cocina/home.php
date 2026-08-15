@@ -66,9 +66,9 @@ if (isset($_POST['logout-session'])) {
             <i class="fi fi-br-cross icon-close" data-bs-dismiss="offcanvas" aria-label="Close"></i>
         </div>
         <form method="post" action="" class="offcanvas-body body-options-menu">
-            <div class="mt-1"><button type="button" class="btn-option-menu modulo" data-modulo="management-menu"><i
+            <div class="mt-1"><button type="button" class="btn-option-menu" onclick="my_products()"><i
                         class="fi fi-br-hamburger-soda"></i><span>Mis Productos</span></button></div>
-            <div class="mt-1"><button type="button" class="btn-option-menu modulo" data-modulo="management-menu"><i
+            <div class="mt-1"><button type="button" class="btn-option-menu"><i
                         class="fi fi-br-list-check"></i><span>Historial</span></button></div>
             <div class="mt-1"><button type="submit" name="logout-session" class="btn-option-menu"><i
                         class="fi fi-br-power"></i><span>Cerrar Sesión</span></button></div>
@@ -78,6 +78,22 @@ if (isset($_POST['logout-session'])) {
 
     <div class="container-main-home" id="container-main-home">
         <div id="root" class="container-orders"></div>
+    </div>
+
+    <!-- Modal Productosn Agotados-->
+    <div class="modal fade" id="static-disabledProduct" data-bs-backdrop="static" data-bs-keyboard="false"
+        aria-labelledby="static-disabledProductLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div><span id="static-disabledProductLabel">Mis Productos</span></div>
+                    <div><i class="fi fi-br-cross icon-close" data-bs-dismiss="modal" aria-label="Close"></i></div>
+                </div>
+                <div class="modal-body" id="disabledProduct-form">
+
+                </div>
+            </div>
+        </div>
     </div>
 
     <!--ALERT-->
@@ -478,4 +494,187 @@ if (isset($_POST['logout-session'])) {
     }
 
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+
+<script>
+    function my_products() {
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('static-disabledProduct')).show();
+        bootstrap.Offcanvas.getInstance('#staticMenu').hide();
+
+        $.ajax({
+            type: 'POST',
+            url: 'my-products.php',
+            data: {},
+            dataType: 'html',
+            beforeSend: function () {
+                animation_load('disabledProduct-form');
+            },
+            success: function (response) {
+                $("#disabledProduct-form").html(response);
+            },
+            error: function (xhr, status, error) {
+                message_error('disabledProduct-form');
+            }/*,
+        complete: function () {
+            animation_load('edituser-form');
+        }*/
+        });
+    }
+
+
+    document.addEventListener('input', function (e) {
+        if (e.target && e.target.id === 'search-varprod') {
+            let searchValue = e.target.value.toLowerCase().trim();
+
+            let combosContainer = document.getElementById('combos-container');
+            let productosContainer = document.getElementById('productos-container');
+            let extrasContainer = document.getElementById('extras-container');
+
+            let titleCombos = document.getElementById('title-seccion-combos');
+            let titleProductos = document.getElementById('title-seccion-productos');
+            let titleExtras = document.getElementById('title-seccion-extras');
+
+            if (!combosContainer || !productosContainer || !extrasContainer) return;
+
+            let combosWrappers = combosContainer.querySelectorAll('.combo-wrapper');
+            let productosWrappers = productosContainer.querySelectorAll('.producto-wrapper');
+            let extrasWrappers = extrasContainer.querySelectorAll('.extra-wrapper');
+
+            // Detecta si la sección tiene datos reales (independiente del filtro)
+            let hasCombos = combosWrappers.length > 0;
+            let hasProductos = productosWrappers.length > 0;
+            let hasExtras = extrasWrappers.length > 0;
+
+            let comboEmptyMsg = document.getElementById('combos-empty');
+            let productoEmptyMsg = document.getElementById('productos-empty');
+            let extraEmptyMsg = document.getElementById('extras-empty');
+
+            let combosVisibles = 0;
+            let productosVisibles = 0;
+            let extrasVisibles = 0;
+
+            if (searchValue === '') {
+                combosWrappers.forEach(wrapper => { wrapper.style.display = 'block'; });
+                combosVisibles = combosWrappers.length;
+
+                productosWrappers.forEach(wrapper => {
+                    wrapper.style.display = 'block';
+                    let variantes = wrapper.querySelectorAll('.variante-item');
+                    variantes.forEach(v => v.style.display = 'flex');
+                });
+                productosVisibles = productosWrappers.length;
+
+                extrasWrappers.forEach(wrapper => { wrapper.style.display = 'block'; });
+                extrasVisibles = extrasWrappers.length;
+
+                if (comboEmptyMsg) comboEmptyMsg.style.display = 'block';
+                if (productoEmptyMsg) productoEmptyMsg.style.display = 'block';
+                if (extraEmptyMsg) extraEmptyMsg.style.display = 'block';
+
+            } else {
+                // === FILTRAR COMBOS ===
+                combosWrappers.forEach(wrapper => {
+                    let comboTexto = wrapper.dataset.searchable || '';
+                    if (comboTexto.includes(searchValue)) {
+                        wrapper.style.display = 'block';
+                        combosVisibles++;
+                    } else {
+                        wrapper.style.display = 'none';
+                    }
+                });
+
+                // === FILTRAR PRODUCTOS Y VARIANTES ===
+                productosWrappers.forEach(wrapper => {
+                    let variantes = wrapper.querySelectorAll('.variante-item');
+                    let productoTexo = wrapper.dataset.searchable || '';
+                    let productoVisible = productoTexo.includes(searchValue);
+
+                    let variantesVisibles = 0;
+                    variantes.forEach(variante => {
+                        let varianteTexto = variante.dataset.searchable || '';
+                        if (varianteTexto.includes(searchValue)) {
+                            variante.style.display = 'flex';
+                            variantesVisibles++;
+                        } else {
+                            variante.style.display = 'none';
+                        }
+                    });
+
+                    if (productoVisible || variantesVisibles > 0) {
+                        wrapper.style.display = 'block';
+                        productosVisibles++;
+                        if (productoVisible) {
+                            variantes.forEach(v => v.style.display = 'flex');
+                        }
+                    } else {
+                        wrapper.style.display = 'none';
+                    }
+                });
+
+                // === FILTRAR EXTRAS ===
+                extrasWrappers.forEach(wrapper => {
+                    let extraTexto = wrapper.dataset.searchable || '';
+                    if (extraTexto.includes(searchValue)) {
+                        wrapper.style.display = 'block';
+                        extrasVisibles++;
+                    } else {
+                        wrapper.style.display = 'none';
+                    }
+                });
+
+                if (comboEmptyMsg) comboEmptyMsg.style.display = 'none';
+                if (productoEmptyMsg) productoEmptyMsg.style.display = 'none';
+                if (extraEmptyMsg) extraEmptyMsg.style.display = 'none';
+            }
+
+            // El título se muestra si: hay coincidencias en la búsqueda,
+            // O si no hay filtro activo y la sección tiene datos reales
+            titleCombos.style.display = (searchValue === '' ? hasCombos : combosVisibles > 0) ? 'block' : 'none';
+            titleProductos.style.display = (searchValue === '' ? hasProductos : productosVisibles > 0) ? 'block' : 'none';
+            titleExtras.style.display = (searchValue === '' ? hasExtras : extrasVisibles > 0) ? 'block' : 'none';
+
+            let totalVisibles = combosVisibles + productosVisibles + extrasVisibles;
+            let totalConDatos = (hasCombos ? 1 : 0) + (hasProductos ? 1 : 0) + (hasExtras ? 1 : 0);
+
+            document.querySelectorAll('.no-results-message').forEach(el => el.remove());
+
+            if (searchValue !== '' && totalVisibles === 0 && totalConDatos > 0) {
+                $('#text-no-reults').html(`<div class="no-results-message text-center p-3 bg-light rounded">No se encontraron resultados para "${searchValue}"</div>`);
+            } else {
+                $('#text-no-reults').html('');
+            }
+        }
+    });
+
+    // Función para manejar los switches con mejor feedback
+    document.addEventListener('change', function (e) {
+        if (e.target && e.target.classList.contains('switch-item')) {
+            let switchElement = e.target;
+            let tipo = switchElement.dataset.tipo;
+            let id = switchElement.dataset.id;
+            let estado = switchElement.checked ? 0 : 1;
+
+            switchElement.disabled = true;
+
+            $.ajax({
+                type: "POST",
+                url: "../../controller/actualizar-disponibilidad.php",
+                data: { tipo: tipo, id: id, estado: estado },
+                dataType: 'json',
+                timeout: 5000,
+
+                success: function (response) {
+                    switchElement.disabled = false;
+                    if (!response.success) {
+                        switchElement.checked = !switchElement.checked;
+                    }
+                },
+
+                error: function (xhr, status, error) {
+                    switchElement.disabled = false;
+                    switchElement.checked = !switchElement.checked;
+                }
+            });
+        }
+    });
 </script>

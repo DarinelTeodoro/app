@@ -231,21 +231,35 @@ function render_lista_extras() {
         const seleccionado = configActual.extrasSeleccionados.find(e => e.id === extra.id);
         const cantidad = seleccionado ? seleccionado.qty : 0;
         const subtotalExtra = Number(extra.price) * cantidad;
+        const agotado = extra.available == 0;
+        let selectExtra;
 
-        return `
-        <div class="extra-item" data-extra-id="${extra.id}">
-            <div class="extra-item-info">
-                <span>${escapeHTML(extra.extra)}</span>
-                <small class="text-muted">($${escapeHTML(extra.price)} c/u)</small>
+        if (agotado) {
+            selectExtra = `<div class="extra-item" data-extra-id="${extra.id}">
+                <div class="extra-item-info">
+                    <span class="text-muted">${escapeHTML(extra.extra)}</span>
+                    <small class="text-muted">($${escapeHTML(extra.price)} c/u)</small>
+                </div>
+                <div class="extra-item-info"><small class="text-muted"><b class="text-danger">Agotado</b></small></div>
             </div>
-            <div class="extra-item-subtotal">$${subtotalExtra.toFixed(2)}</div>
-            <div class="extra-item-qty">
-                <button type="button" class="btn-qty" data-action="restar-extra"><i class="fi fi-br-minus-small"></i></button>
-                <span class="extra-qty-valor">${cantidad}</span>
-                <button type="button" class="btn-qty" data-action="sumar-extra"><i class="fi fi-br-plus-small"></i></button>
+            `;
+        } else {
+            selectExtra = `<div class="extra-item" data-extra-id="${extra.id}">
+                <div class="extra-item-info">
+                    <span>${escapeHTML(extra.extra)}</span>
+                    <small class="text-muted">($${escapeHTML(extra.price)} c/u)</small>
+                </div>
+                <div class="extra-item-subtotal">$${subtotalExtra.toFixed(2)}</div>
+                <div class="extra-item-qty">
+                    <button type="button" class="btn-qty" data-action="restar-extra"><i class="fi fi-br-minus-small"></i></button>
+                    <span class="extra-qty-valor">${cantidad}</span>
+                    <button type="button" class="btn-qty" data-action="sumar-extra"><i class="fi fi-br-plus-small"></i></button>
+                </div>
             </div>
-        </div>
-        `;
+            `;
+        }
+
+        return selectExtra;
     }).join('');
 
     const totalExtras = configActual.extrasSeleccionados.reduce((sum, e) => sum + Number(e.price) * e.qty, 0);
@@ -470,14 +484,33 @@ function abrir_modal_variantes(producto) {
     document.getElementById('variantes-product-name').textContent = producto.product;
 
     const contenedor = document.getElementById('variantes-list');
-    contenedor.innerHTML = opciones.map(variante => `
+    contenedor.innerHTML = opciones.map(variante => {
+        const agotada = variante.available == 0;
+        let btnVariante; // declarada afuera, así sobrevive a los dos bloques
+
+        if (agotada) {
+            btnVariante = `<div class="border border-2 rounded p-2 text-general text-center">
+            <span class="text-muted">${escapeHTML(variante.variant)}</span>
+            <span class="ms-1 text-muted">+ ($${escapeHTML(variante.price)})</span>
+            <span class="ms-1 text-danger">Agotado</span>
+        </div>`;
+        } else {
+            btnVariante = `
         <button type="button" class="variante-item" data-variant-id="${variante.id}">
             <span>${escapeHTML(variante.variant)}</span>
             <span class="ms-1">+ ($${escapeHTML(variante.price)})</span>
         </button>
-    `).join('');
+        `;
+        }
+
+        return btnVariante;
+    }).join('');
 
     contenedor.querySelectorAll('.variante-item').forEach(boton => {
+        // Las agotadas ya vienen con "disabled" en el HTML, pero por las
+        // dudas también se corta acá si alguien fuerza el click.
+        if (boton.disabled) return;
+
         boton.addEventListener('click', () => {
             const variantId = Number(boton.dataset.variantId);
             const variante = opciones.find(v => v.id === variantId);

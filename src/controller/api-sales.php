@@ -275,7 +275,7 @@ $rows_es = $extras_sale->fetchAll(PDO::FETCH_ASSOC);
                 <table class="table" style="font-size: 0.85rem;">
                     <thead>
                         <tr>
-                            <td class="bg-secondary text-center text-light" colspan="7"><b>Meseros y Propinas</b></td>
+                            <td class="bg-secondary text-center text-light" colspan="5"><b>Meseros y Propinas</b></td>
                         </tr>
                         <tr>
                             <th>Mesero</th>
@@ -317,7 +317,7 @@ $rows_es = $extras_sale->fetchAll(PDO::FETCH_ASSOC);
                 <table class="table" style="font-size: 0.85rem;">
                     <thead>
                         <tr>
-                            <td class="bg-secondary text-center text-light" colspan="7"><b>Metodos de Pago</b></td>
+                            <td class="bg-secondary text-center text-light" colspan="5"><b>Metodos de Pago</b></td>
                         </tr>
                         <tr>
                             <th>Metodo</th>
@@ -384,7 +384,7 @@ $rows_es = $extras_sale->fetchAll(PDO::FETCH_ASSOC);
                 <table class="table" style="font-size: 0.85rem;">
                     <thead>
                         <tr>
-                            <td class="bg-secondary text-center text-light" colspan="7"><b>Resumen de Pagos</b></td>
+                            <td class="bg-secondary text-center text-light" colspan="5"><b>Resumen de Pagos</b></td>
                         </tr>
                         <tr>
                             <th class="text-center">Folio</th>
@@ -511,7 +511,7 @@ $rows_es = $extras_sale->fetchAll(PDO::FETCH_ASSOC);
                 <table class="table" style="font-size: 0.85rem;">
                     <thead>
                         <tr>
-                            <td class="bg-secondary text-center text-light" colspan="7"><b>Productos Vendidos</b></td>
+                            <td class="bg-secondary text-center text-light" colspan="3"><b>Productos Vendidos</b></td>
                         </tr>
                         <tr>
                             <th>Producto</th>
@@ -549,7 +549,7 @@ $rows_es = $extras_sale->fetchAll(PDO::FETCH_ASSOC);
                 <table class="table" style="font-size: 0.85rem;">
                     <thead>
                         <tr>
-                            <td class="bg-secondary text-center text-light" colspan="7"><b>Extras Vendidos</b></td>
+                            <td class="bg-secondary text-center text-light" colspan="3"><b>Extras Vendidos</b></td>
                         </tr>
                         <tr>
                             <th>Extra</th>

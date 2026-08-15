@@ -66,6 +66,7 @@ if (isset($_POST['logout-session'])) {
                 <thead>
                     <tr>
                         <th></th>
+                        <th></th>
                         <th>Cantidad</th>
                         <th class="text-center">Fecha</th>
                         <th class="text-center">Concepto</th>
@@ -82,7 +83,7 @@ if (isset($_POST['logout-session'])) {
     <!-- Modal Monto Inicial-->
     <div class="modal fade" id="static-amountInit" data-bs-backdrop="static" data-bs-keyboard="false"
         aria-labelledby="static-amountInitLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
                     <div><span id="static-amountInitLabel">Cambiar Monto Inicial</span></div>
@@ -99,7 +100,7 @@ if (isset($_POST['logout-session'])) {
     <!-- Modal Corte de Caja-->
     <div class="modal fade" id="static-cutBox" data-bs-backdrop="static" data-bs-keyboard="false"
         aria-labelledby="static-cutBoxLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
                     <div><span id="static-cutBoxLabel">Corte de Caja</span></div>
@@ -110,38 +111,38 @@ if (isset($_POST['logout-session'])) {
                         <div class="input-group">
                             <span class="input-group-text bg-dark border border-primary text-warning">$1,000</span>
                             <input type="number" name="mil" id="mil" class="form-control border border-primary" min="0"
-                                placeholder="0">
+                                step="1000" placeholder="0">
                         </div>
                         <div class="input-group">
                             <span class="input-group-text bg-dark border border-primary text-warning">$500</span>
                             <input type="number" name="quinientos" id="quinientos"
-                                class="form-control border border-primary" min="0" placeholder="0">
+                                class="form-control border border-primary" min="0" step="500" placeholder="0">
                         </div>
                         <div class="input-group">
                             <span class="input-group-text bg-dark border border-primary text-warning">$200</span>
                             <input type="number" name="doscientos" id="doscientos"
-                                class="form-control border border-primary" min="0" placeholder="0">
+                                class="form-control border border-primary" min="0" step="200" placeholder="0">
                         </div>
                         <div class="input-group">
                             <span class="input-group-text bg-dark border border-primary text-warning">$100</span>
                             <input type="number" name="cien" id="cien" class="form-control border border-primary"
-                                min="0" placeholder="0">
+                                min="0" step="100" placeholder="0">
                         </div>
                         <div class="input-group">
                             <span class="input-group-text bg-dark border border-primary text-warning">$50</span>
                             <input type="number" name="cincuenta" id="cincuenta"
-                                class="form-control border border-primary" min="0" placeholder="0">
+                                class="form-control border border-primary" min="0" step="50" placeholder="0">
                         </div>
                         <div class="input-group">
                             <span class="input-group-text bg-dark border border-primary text-warning">$20</span>
                             <input type="number" name="veinte" id="veinte" class="form-control border border-primary"
-                                min="0" placeholder="0">
+                                min="0" step="20" placeholder="0">
                         </div>
                         <div class="input-group">
                             <span
-                                class="input-group-text bg-dark border border-primary text-warning">$10/$5/$2/$1</span>
+                                class="input-group-text bg-dark border border-primary text-warning">$10 - $0.50</span>
                             <input type="number" name="monedas" id="monedas" class="form-control border border-primary"
-                                min="0" placeholder="0">
+                                min="0" step="0.50" placeholder="0">
                         </div>
                     </div>
 
@@ -158,7 +159,7 @@ if (isset($_POST['logout-session'])) {
     <!-- Modal Ajuste de caja-->
     <div class="modal fade" id="static-adjustmentBox" data-bs-backdrop="static" data-bs-keyboard="false"
         aria-labelledby="static-adjustmentBoxLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
                     <div><span id="static-adjustmentBoxLabel">Agregar Ajuste</span></div>

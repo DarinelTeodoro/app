@@ -14,6 +14,7 @@ try {
 
     if ($rows) {
         foreach ($rows as $row) {
+            $ln['used'] = $row['used'] == 1 ? '<i class="fi fi-br-checkbox text-success"></i>' : '<i class="fi fi-br-square"></i>';
             $ln['cantidad'] = $row['tipo'] == 'resta' ? '<b class="text-danger">-</b> $' . number_format(($row['cantidad']), 2) : '<b class="text-success">+</b> $' . number_format($row['cantidad'], 2);
             $ln['fecha'] = date('d-M-Y', strtotime($row['fecha']));
             $ln['hora'] = date('H:i:s', strtotime($row['fecha']));

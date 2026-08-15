@@ -12,7 +12,8 @@ function group_variants($rows)
         $agrupado[$row['product']][] = [
             'id' => $row['id'],
             'variant' => $row['variant'],
-            'price' => $row['increase']
+            'price' => $row['increase'],
+            'available' => $row['available'],
         ];
     }
     return $agrupado;

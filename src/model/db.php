@@ -1,4 +1,6 @@
 <?php
+date_default_timezone_set('America/Mexico_City');
+
 class Conexion extends PDO
 {
     private $tipo_de_base = 'mysql';
@@ -808,12 +810,11 @@ function data_offers($order)
 
 
 /******************************************************* DESCUENTOS */
+/*
 function check_init()
 {
     $hora = date('H:i:s');
     $fecha = date('Y-m-d');
-
-    $fecha_completa = date('Y-m-d H:i:s');
 
     if ($hora < '06:00:00') {
         $date_init = date('Y-m-d 06:00:00', strtotime($fecha . ' -1 day'));
@@ -832,7 +833,7 @@ function check_init()
 
     if (!$result) {
         $insert = $conexion->prepare("INSERT INTO init_daily(dt, inicial) VALUES (:dt, 0)");
-        $insert->bindParam(':dt', $fecha_completa);
+        $insert->bindParam(':dt', $date_init);
         $insert->execute();
     }
 
@@ -861,5 +862,54 @@ function get_init()
     $query->execute();
 
     return $query->fetch(PDO::FETCH_ASSOC);
+}
+*/
+
+function get_init()
+{
+    $hora = date('H:i:s');
+    $fecha = date('Y-m-d');
+
+    if ($hora < '06:00:00') {
+        $date_init = date('Y-m-d 06:00:00', strtotime($fecha . ' -1 day'));
+        $date_finish = date('Y-m-d 06:00:00', strtotime($fecha));
+    } else {
+        $date_init = date('Y-m-d 06:00:00', strtotime($fecha));
+        $date_finish = date('Y-m-d 06:00:00', strtotime($fecha . ' +1 day'));
+    }
+
+    $conexion = new Conexion();
+
+    $query = $conexion->prepare("
+        SELECT *
+        FROM init_daily
+        WHERE dt >= :date_init
+        AND dt < :date_finish
+        AND used = 0
+        LIMIT 1
+    ");
+
+    $query->bindParam(':date_init', $date_init);
+    $query->bindParam(':date_finish', $date_finish);
+    $query->execute();
+
+    $result = $query->fetch(PDO::FETCH_ASSOC);
+
+    if (!$result) {
+
+        $insert = $conexion->prepare("
+            INSERT INTO init_daily (dt, inicial)
+            VALUES (:dt, 0)
+        ");
+
+        $insert->bindParam(':dt', $date_init);
+        $insert->execute();
+
+        $query->execute();
+
+        $result = $query->fetch(PDO::FETCH_ASSOC);
+    }
+
+    return $result;
 }
 ?>

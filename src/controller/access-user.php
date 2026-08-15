@@ -4,7 +4,7 @@ include('../model/db.php');
 
 $response = array(); // Inicia array para response
 
-$check = check_init();
+$check = get_init();
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!empty($_POST['key-user']) && !empty($_POST['key-password'])) {
